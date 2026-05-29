@@ -1,24 +1,21 @@
-const { execSync } = require('child_process');
+const os = require('os');
 const fs = require('fs');
+const path = require('path');
 
 let ip = '127.0.0.1';
 
-try {
-  const output = execSync('ipconfig', { encoding: 'utf8' });
-  const lines = output.split('\n');
-  for (const line of lines) {
-    const match = line.match(/IPv4.*:\s*([\d.]+)/);
-    if (match) {
-      const found = match[1];
-      if (found !== '127.0.0.1') {
-        ip = found;
-        break;
-      }
+const nets = os.networkInterfaces();
+for (const name of Object.keys(nets)) {
+  for (const net of nets[name]) {
+    if (net.family === 'IPv4' && !net.internal) {
+      ip = net.address;
+      break;
     }
   }
-} catch {}
+  if (ip !== '127.0.0.1') break;
+}
 
-fs.writeFileSync('config.json', JSON.stringify({ localIP: ip }, null, 2));
+fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify({ localIP: ip }, null, 2));
 
 const PORT = 3000;
 console.log(`IP local: ${ip}`);

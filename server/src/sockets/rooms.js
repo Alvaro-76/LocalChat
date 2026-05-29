@@ -31,7 +31,9 @@ function getRoomData(room) {
     name: room.name,
     admin: room.admin,
     players: room.players,
+    hasPassword: !!room.password,
     currentTurn: room.currentTurn,
+    currentDiceConfig: room.currentDiceConfig,
     lastRolls: Object.fromEntries(room.lastRolls),
     messages: room.messages,
     createdAt: room.createdAt
@@ -76,8 +78,10 @@ function setupRooms(io) {
         id,
         name: data.name || 'Sala sin nombre',
         admin: user.username,
+        password: data.password || null,
         players: [user.username],
         currentTurn: 0,
+        currentDiceConfig: null,
         lastRolls: new Map(),
         messages: [],
         createdAt: Date.now()
@@ -94,6 +98,9 @@ function setupRooms(io) {
       const room = rooms.get(data.roomId);
       if (!room) return socket.emit('error', { message: 'La sala no existe' });
       if (room.players.includes(user.username)) return socket.emit('error', { message: 'Ya estas en la sala' });
+      if (room.password && room.password !== data.password) {
+        return socket.emit('room:error', { message: 'Contraseña incorrecta' });
+      }
       room.players.push(user.username);
       socket.join(data.roomId);
       socket.emit('room:joined', getRoomData(room));
@@ -137,6 +144,7 @@ function setupRooms(io) {
       if (!room) return;
       if (room.players[room.currentTurn] !== user.username) return;
       room.currentTurn = (room.currentTurn + 1) % room.players.length;
+      room.currentDiceConfig = null;
       io.to(data.roomId).emit('room:updated', getRoomData(room));
     });
 
@@ -194,12 +202,30 @@ function setupRooms(io) {
       io.to(data.roomId).emit('room:message:new', msg);
     });
 
+    socket.on('dice:config', (data) => {
+      const user = socket.data.user;
+      if (!user) return;
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      if (!room.players.includes(user.username)) return;
+      if (room.players[room.currentTurn] !== user.username) return;
+      room.currentDiceConfig = data.counts || null;
+      socket.to(data.roomId).emit('dice:config-update', {
+        roomId: data.roomId,
+        counts: room.currentDiceConfig,
+        username: user.username
+      });
+    });
+
     socket.on('dice:roll', (data) => {
       const user = socket.data.user;
       if (!user) return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       if (!room.players.includes(user.username)) return;
+      if (room.players[room.currentTurn] !== user.username) {
+        return socket.emit('room:error', { message: 'No es tu turno' });
+      }
 
       const diceConfig = data.dice || {};
       const explosive = !!data.explosive;
@@ -232,6 +258,7 @@ function setupRooms(io) {
       };
 
       room.lastRolls.set(user.username, rollResult);
+      room.currentDiceConfig = null;
       io.to(data.roomId).emit('dice:result', rollResult);
       io.to(data.roomId).emit('room:updated', getRoomData(room));
     });

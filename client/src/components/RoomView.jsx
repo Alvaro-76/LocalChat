@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import DiceRoller from './DiceRoller';
 import Avatar from './Avatar';
 
-export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder, onNextTurn, onKick, onInvite, onMessage, messages }) {
+export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder, onNextTurn, onKick, onInvite, onMessage, onConfigChange, messages }) {
   const isAdmin = room.admin === currentUser;
   const currentPlayer = room.players[room.currentTurn];
   const isMyTurn = currentPlayer === currentUser;
-  const myLastRoll = room.lastRolls?.[currentUser];
-  const [diceColor, setDiceColor] = useState('#e94560');
+  const turnLastRoll = room.lastRolls?.[currentPlayer];
+  const canRollDice = isMyTurn;
+  const [diceColor, setDiceColor] = useState('#4F6CF7');
   const [inviteUser, setInviteUser] = useState('');
   const [chatText, setChatText] = useState('');
   const [dragIdx, setDragIdx] = useState(null);
@@ -70,17 +71,19 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
 
   const styles = {
     container: {
-      flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden'
+      flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: 'var(--bg)'
     },
     header: {
-      padding: '16px 24px', background: '#16213e', borderBottom: '1px solid #0f3460',
+      padding: '14px 24px', background: 'var(--header-bg)', borderBottom: '1px solid var(--border)',
       display: 'flex', justifyContent: 'space-between', alignItems: 'center'
     },
-    headerTitle: { fontSize: '18px', fontWeight: 600 },
-    headerSub: { fontSize: '13px', color: '#888' },
+    headerTitle: { fontSize: '16px', fontWeight: 600, color: 'var(--text)' },
+    headerSub: { fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' },
     leaveBtn: {
-      padding: '6px 14px', border: '1px solid #e94560', borderRadius: '6px',
-      background: 'transparent', color: '#e94560', cursor: 'pointer', fontSize: '12px'
+      padding: '6px 14px', border: '2px solid var(--danger)', borderRadius: '20px',
+      background: 'transparent', color: 'var(--danger)', cursor: 'pointer',
+      fontSize: '12px', fontWeight: 600
     },
     body: {
       flex: 1, display: 'flex', overflow: 'hidden'
@@ -90,106 +93,102 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
       display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0
     },
     sidebar: {
-      width: '260px', background: '#16213e', borderLeft: '1px solid #0f3460',
+      width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)',
       display: 'flex', flexDirection: 'column'
     },
     sidebarTitle: {
-      padding: '12px 16px', fontSize: '12px', color: '#888',
-      textTransform: 'uppercase', letterSpacing: '1px',
-      borderBottom: '1px solid #0f3460'
+      padding: '12px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text)',
+      textTransform: 'uppercase', letterSpacing: '0.8px',
+      borderBottom: '1px solid var(--border)'
     },
     playerList: { flex: 1, overflowY: 'auto', padding: '8px' },
     playerItem: (isCurrent, isMe, isDragging) => ({
       display: 'flex', alignItems: 'center', gap: '8px',
-      padding: '8px 10px', borderRadius: '8px', marginBottom: '4px',
-      background: isCurrent ? `${diceColor}25` : '#1a1a2e',
-      border: isCurrent ? `1px solid ${diceColor}` : '1px solid transparent',
+      padding: '8px 10px', borderRadius: '10px', marginBottom: '4px',
+      background: isCurrent ? 'var(--accent-light)' : 'var(--surface-hover)',
+      border: isCurrent ? '2px solid var(--secondary)' : '2px solid transparent',
       opacity: isDragging ? 0.4 : 1,
       transition: 'all 0.15s',
       cursor: isAdmin ? 'grab' : 'default'
     }),
-    playerAvatar: (isMe) => ({
-      width: '28px', height: '28px', borderRadius: '50%',
-      background: isMe ? diceColor : '#0f3460',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: '12px', fontWeight: 600, flexShrink: 0
-    }),
     playerInfo: { flex: 1, minWidth: 0 },
-    playerName: { fontSize: '13px', fontWeight: 500 },
+    playerName: { fontSize: '13px', fontWeight: 500, color: 'var(--text)' },
     playerStatus: (isCurrent) => ({
-      fontSize: '10px', color: isCurrent ? diceColor : '#555',
+      fontSize: '10px', color: isCurrent ? 'var(--secondary)' : 'var(--text-muted)',
       fontWeight: isCurrent ? 600 : 400
     }),
     adminBadge: {
-      fontSize: '9px', background: '#e94560', padding: '1px 4px',
-      borderRadius: '3px', marginLeft: '4px'
+      fontSize: '9px', background: 'var(--badge-bg)', color: 'var(--badge-text)',
+      padding: '1px 4px', borderRadius: '3px', marginLeft: '4px', fontWeight: 600
     },
     moveBtn: {
-      background: 'none', border: 'none', color: '#888', cursor: 'pointer',
+      background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer',
       fontSize: '14px', padding: '0 2px', lineHeight: 1
     },
     kickBtn: {
-      background: 'none', border: 'none', color: '#e94560', cursor: 'pointer',
+      background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer',
       fontSize: '14px', padding: '0 2px', lineHeight: 1
     },
     turnActions: {
-      padding: '12px 16px', borderTop: '1px solid #0f3460'
+      padding: '12px 16px', borderTop: '1px solid var(--border)'
     },
     nextTurnBtn: {
-      width: '100%', padding: '8px', border: 'none', borderRadius: '6px',
+      width: '100%', padding: '8px', border: 'none', borderRadius: '8px',
       background: diceColor, color: '#fff', fontSize: '13px', fontWeight: 600,
       cursor: 'pointer', marginBottom: '6px'
     },
     inviteForm: { display: 'flex', gap: '4px' },
     inviteInput: {
-      flex: 1, padding: '6px 8px', border: '1px solid #0f3460',
-      borderRadius: '4px', fontSize: '12px', background: '#1a1a2e',
-      color: '#eee', outline: 'none'
+      flex: 1, padding: '6px 10px', border: '2px solid var(--border)',
+      borderRadius: '8px', fontSize: '12px', background: 'var(--input-bg)',
+      color: 'var(--text)', outline: 'none'
     },
     inviteBtn: {
-      padding: '6px 10px', border: 'none', borderRadius: '4px',
-      background: '#0f3460', color: '#eee', fontSize: '11px', cursor: 'pointer'
+      padding: '6px 12px', border: 'none', borderRadius: '8px',
+      background: 'var(--success)', color: '#fff', fontSize: '11px',
+      fontWeight: 600, cursor: 'pointer'
     },
-    lastRollsSection: {
-      background: '#16213e', borderRadius: '8px',
-      padding: '12px 16px', border: '1px solid #0f3460'
+    card: {
+      background: 'var(--surface)', borderRadius: '12px', padding: '16px',
+      border: '1px solid var(--border)', boxShadow: '0 1px 3px var(--shadow)'
     },
-    lastRollsTitle: { fontSize: '13px', color: '#888', marginBottom: '8px' },
-    lastRollItem: (color) => ({
+    cardTitle: { fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+    lastRollItem: (color, muted) => ({
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '6px 8px', borderRadius: '6px', marginBottom: '4px',
-      background: `${color}15`, borderLeft: `3px solid ${color}`
+      padding: '8px 10px', borderRadius: '8px', marginBottom: '4px',
+      background: 'var(--surface-hover)', borderLeft: `3px solid ${muted ? `${color}40` : color}`,
+      opacity: muted ? 0.6 : 1
     }),
-    lastRollUser: { fontSize: '13px', fontWeight: 600 },
-    lastRollInfo: { fontSize: '12px', color: '#aaa', textAlign: 'right' },
-    lastRollTotal: { fontWeight: 700 },
+    lastRollUser: { fontSize: '13px', fontWeight: 600, color: 'var(--text)' },
+    lastRollInfo: { fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right' },
+    lastRollTotal: { fontWeight: 700, color: 'var(--text)' },
     chatSection: {
-      background: '#16213e', borderRadius: '8px', border: '1px solid #0f3460',
-      display: 'flex', flexDirection: 'column', maxHeight: '300px'
+      background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', maxHeight: '280px'
     },
     chatMessages: {
-      flex: 1, overflowY: 'auto', padding: '8px 12px', minHeight: '100px'
+      flex: 1, overflowY: 'auto', padding: '8px 12px', minHeight: '80px'
     },
     chatMsg: {
-      padding: '4px 0', fontSize: '14px', borderBottom: '1px solid #0f346020',
+      padding: '6px 0', fontSize: '14px',
       display: 'flex', alignItems: 'flex-start', gap: '8px'
     },
     chatMsgContent: { flex: 1 },
     chatMsgFrom: { fontSize: '11px', fontWeight: 600, color: diceColor },
-    chatMsgContentText: { fontSize: '14px', wordBreak: 'break-word' },
-    chatMsgTime: { fontSize: '10px', color: '#555', textAlign: 'right' },
-    chatEmpty: { color: '#555', fontSize: '13px', textAlign: 'center', padding: '24px' },
+    chatMsgContentText: { fontSize: '14px', wordBreak: 'break-word', color: 'var(--text)' },
+    chatMsgTime: { fontSize: '10px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' },
+    chatEmpty: { color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '16px' },
     chatInputForm: {
       display: 'flex', gap: '6px', padding: '8px 12px',
-      borderTop: '1px solid #0f3460'
+      borderTop: '1px solid var(--border)'
     },
     chatInput: {
-      flex: 1, padding: '8px 10px', border: '1px solid #0f3460',
-      borderRadius: '6px', fontSize: '13px', background: '#1a1a2e',
-      color: '#eee', outline: 'none'
+      flex: 1, padding: '8px 12px', border: '2px solid var(--border)',
+      borderRadius: '20px', fontSize: '13px', background: 'var(--input-bg)',
+      color: 'var(--text)', outline: 'none'
     },
     chatSendBtn: {
-      padding: '8px 14px', border: 'none', borderRadius: '6px',
+      padding: '8px 16px', border: 'none', borderRadius: '20px',
       background: diceColor, color: '#fff', fontSize: '12px', fontWeight: 600,
       cursor: 'pointer'
     }
@@ -215,23 +214,27 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
       <div style={styles.body}>
         <div style={styles.mainArea}>
           <DiceRoller
+            key={currentPlayer}
             onRoll={onRoll}
-            lastRoll={myLastRoll}
+            lastRoll={turnLastRoll}
             color={diceColor}
             onColorChange={setDiceColor}
+            disabled={!canRollDice}
+            currentDiceConfig={room.currentDiceConfig}
+            onConfigChange={canRollDice ? onConfigChange : undefined}
           />
 
           {room.lastRolls && Object.keys(room.lastRolls).length > 0 && (
-            <div style={styles.lastRollsSection}>
-              <div style={styles.lastRollsTitle}>Últimas tiradas de la sala</div>
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>Últimas tiradas</div>
               {Object.entries(room.lastRolls)
-                .filter(([name]) => name !== currentUser)
+                .filter(([name]) => name !== currentPlayer)
                 .reverse()
                 .map(([name, roll]) => (
-                  <div key={name} style={styles.lastRollItem(roll.color || '#e94560')}>
+                  <div key={name} style={styles.lastRollItem(roll.color || '#4F6CF7', true)}>
                     <div>
                       <div style={styles.lastRollUser}>{name}</div>
-                      <div style={{ fontSize: '11px', color: '#888' }}>{formatDiceSummary(roll)}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDiceSummary(roll)}</div>
                     </div>
                     <div style={styles.lastRollInfo}>
                       <div style={styles.lastRollTotal}>{roll.total}</div>
@@ -243,7 +246,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
           )}
 
           <div style={styles.chatSection}>
-            <div style={{ ...styles.lastRollsTitle, padding: '8px 12px', borderBottom: '1px solid #0f3460', margin: 0 }}>
+            <div style={{ ...styles.cardTitle, padding: '10px 12px', borderBottom: '1px solid var(--border)', margin: 0 }}>
               Chat de sala
             </div>
             <div style={styles.chatMessages}>
@@ -266,7 +269,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
             <form style={styles.chatInputForm} onSubmit={handleChatSubmit}>
               <input
                 style={styles.chatInput}
-                placeholder="Escribe un mensaje en la sala..."
+                placeholder="Escribe un mensaje..."
                 value={chatText}
                 onChange={(e) => setChatText(e.target.value)}
               />
@@ -278,7 +281,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
         <div style={styles.sidebar}>
           <div style={styles.sidebarTitle}>
             Jugadores
-            {isAdmin && <span style={{ fontSize: '10px', color: '#888', fontWeight: 400, marginLeft: '8px' }}>(arrastra para ordenar)</span>}
+            {isAdmin && <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '8px' }}>(arrastra)</span>}
           </div>
           <div style={styles.playerList}>
             {room.players.map((username, idx) => {
@@ -329,7 +332,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
               <form style={styles.inviteForm} onSubmit={handleInvite}>
                 <input
                   style={styles.inviteInput}
-                  placeholder="Invitado por nombre..."
+                  placeholder="Invitado..."
                   value={inviteUser}
                   onChange={(e) => setInviteUser(e.target.value)}
                 />

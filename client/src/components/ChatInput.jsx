@@ -96,33 +96,29 @@ export default function ChatInput({ onSend, onFileUpload, placeholder, typingTo 
 
   const styles = {
     wrapper: {
-      borderTop: '1px solid #0f3460', background: '#16213e',
+      background: 'var(--surface)', borderTop: '1px solid var(--border)',
       position: 'relative'
     },
     form: {
-      display: 'flex', gap: '8px', padding: '12px 16px',
+      display: 'flex', gap: '6px', padding: '10px 16px',
       alignItems: 'center'
     },
-    emojiBtn: {
-      background: 'none', border: 'none', fontSize: '22px',
-      cursor: 'pointer', padding: '6px', borderRadius: '8px',
-      lineHeight: 1, transition: 'all 0.15s',
-      opacity: showEmojis ? 1 : 0.6
-    },
-    fileBtn: {
+    iconBtn: {
       background: 'none', border: 'none', fontSize: '20px',
-      cursor: 'pointer', padding: '6px', borderRadius: '8px',
-      lineHeight: 1, opacity: 0.8
+      cursor: 'pointer', padding: '8px', borderRadius: '50%',
+      lineHeight: 1, opacity: 0.6, transition: 'all 0.15s',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
     },
     input: {
-      flex: 1, padding: '10px 14px', border: '1px solid #0f3460',
-      borderRadius: '8px', fontSize: '15px', background: '#1a1a2e',
-      color: '#eee', outline: 'none'
+      flex: 1, padding: '10px 16px', border: '2px solid var(--border)',
+      borderRadius: '24px', fontSize: '14px', background: 'var(--input-bg)',
+      color: 'var(--text)', outline: 'none', transition: 'border-color 0.2s'
     },
     button: {
-      padding: '10px 20px', border: 'none', borderRadius: '8px',
-      background: '#e94560', color: '#fff', fontSize: '15px',
-      fontWeight: 600, cursor: 'pointer'
+      padding: '10px 20px', border: 'none', borderRadius: '24px',
+      background: 'var(--gradient-btn)',
+      color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+      transition: 'opacity 0.15s'
     }
   };
 
@@ -138,7 +134,7 @@ export default function ChatInput({ onSend, onFileUpload, placeholder, typingTo 
       <form style={styles.form} onSubmit={handleSubmit}>
         <button
           type="button"
-          style={styles.emojiBtn}
+          style={styles.iconBtn}
           onClick={() => setShowEmojis(!showEmojis)}
           title="Emojis"
         >
@@ -146,7 +142,7 @@ export default function ChatInput({ onSend, onFileUpload, placeholder, typingTo 
         </button>
         <button
           type="button"
-          style={styles.fileBtn}
+          style={styles.iconBtn}
           onClick={() => fileRef.current?.click()}
           title="Adjuntar archivo"
         >
@@ -166,6 +162,8 @@ export default function ChatInput({ onSend, onFileUpload, placeholder, typingTo 
           onChange={(e) => {
             handleTextChange(e.target.value, e.target.selectionStart || 0);
           }}
+          onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+          onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           onSelect={(e) => {
             cursorRef.current = e.target.selectionStart || 0;
           }}

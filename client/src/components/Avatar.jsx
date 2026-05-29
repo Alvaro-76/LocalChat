@@ -12,7 +12,7 @@ export default function Avatar({ user, size = 32, style }) {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: Math.max(size * 0.45, 10),
+    fontSize: Math.max(size * 0.42, 10),
     fontWeight: 600,
     flexShrink: 0,
     overflow: 'hidden',

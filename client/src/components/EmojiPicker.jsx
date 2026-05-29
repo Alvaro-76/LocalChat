@@ -56,7 +56,7 @@ export default function EmojiPicker({ onSelect }) {
 
   const styles = {
     container: {
-      borderTop: '1px solid #0f3460', background: '#16213e',
+      borderTop: '1px solid var(--border)', background: 'var(--surface)',
       padding: '8px 12px', maxHeight: '220px', overflowY: 'auto'
     },
     tabs: {

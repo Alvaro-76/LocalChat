@@ -21,6 +21,11 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
+function sanitizeParam(val) {
+  if (typeof val !== 'string') return '';
+  return val.replace(/\.\./g, '').replace(/[/\\]/g, '');
+}
+
 const router = express.Router();
 
 router.post('/upload', upload.single('file'), (req, res) => {
@@ -38,14 +43,18 @@ router.post('/upload', upload.single('file'), (req, res) => {
 });
 
 router.get('/:id/:filename', (req, res) => {
-  const { id, filename } = req.params;
+  const id = sanitizeParam(req.params.id);
+  const filename = sanitizeParam(req.params.filename);
+  if (!id || !filename) return res.status(400).json({ error: 'Parametros invalidos' });
   const filePath = path.join(UPLOAD_DIR, `${id}${path.extname(filename)}`);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Archivo no encontrado' });
   res.sendFile(filePath);
 });
 
 router.get('/:id/:filename/download', (req, res) => {
-  const { id, filename } = req.params;
+  const id = sanitizeParam(req.params.id);
+  const filename = sanitizeParam(req.params.filename);
+  if (!id || !filename) return res.status(400).json({ error: 'Parametros invalidos' });
   const filePath = path.join(UPLOAD_DIR, `${id}${path.extname(filename)}`);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Archivo no encontrado' });
   res.download(filePath, filename);

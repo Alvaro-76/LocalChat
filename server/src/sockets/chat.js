@@ -216,19 +216,23 @@ function setupSocket(io) {
 
     socket.on('group:create', (data) => {
       if (!currentUser) return;
-      const { name } = data;
+      const { name, password } = data;
       if (!name || !name.trim()) return;
       const id = nextGroupId++;
       const group = {
         id,
         name: name.trim(),
         admin: currentUser.username,
+        password: password || null,
         members: [currentUser.username],
         messages: []
       };
       groups.set(id, group);
       io.emit('groups:list', getGroupsForUser(currentUser.username));
-      socket.emit('group:created', group);
+      const groupData = { ...group };
+      delete groupData.password;
+      groupData.hasPassword = !!group.password;
+      socket.emit('group:created', groupData);
     });
 
     socket.on('group:invite', (data) => {
@@ -256,15 +260,21 @@ function setupSocket(io) {
 
     socket.on('group:join', (data) => {
       if (!currentUser) return;
-      const { groupId } = data;
+      const { groupId, password } = data;
       const group = groups.get(groupId);
       if (!group) return;
       if (!group.members.includes(currentUser.username)) {
+        if (group.password && group.password !== password) {
+          return socket.emit('group:error', { message: 'Contraseña incorrecta' });
+        }
         group.members.push(currentUser.username);
       }
       group.messages = db.getGroupMessages(groupId);
       io.emit('groups:list', getGroupsForUser(currentUser.username));
-      socket.emit('group:joined', group);
+      const groupData = { ...group };
+      delete groupData.password;
+      groupData.hasPassword = !!group.password;
+      socket.emit('group:joined', groupData);
     });
 
     socket.on('group:leave', (data) => {
@@ -276,6 +286,34 @@ function setupSocket(io) {
       io.emit('groups:list', getGroupsForUser(currentUser.username));
       if (group.members.length === 0) {
         groups.delete(groupId);
+      }
+    });
+
+    socket.on('clipboard:share', (data) => {
+      if (!currentUser) return;
+      const { content, to } = data;
+      if (!content) return;
+      if (to) {
+        let targetSocketId = null;
+        for (const [sid, u] of onlineUsers) {
+          if (u.username === to) {
+            targetSocketId = sid;
+            break;
+          }
+        }
+        if (targetSocketId) {
+          socket.to(targetSocketId).emit('clipboard:shared', {
+            from: currentUser.username,
+            content: content.slice(0, 10000),
+            timestamp: new Date().toISOString()
+          });
+        }
+      } else {
+        socket.broadcast.emit('clipboard:shared', {
+          from: currentUser.username,
+          content: content.slice(0, 10000),
+          timestamp: new Date().toISOString()
+        });
       }
     });
 
@@ -317,7 +355,14 @@ function setupSocket(io) {
 }
 
 function getGroupsForUser(username) {
-  return Array.from(groups.values()).filter((g) => g.members.includes(username));
+  return Array.from(groups.values())
+    .filter((g) => g.members.includes(username))
+    .map((g) => {
+      const data = { ...g };
+      delete data.password;
+      data.hasPassword = !!g.password;
+      return data;
+    });
 }
 
 module.exports = setupSocket;

@@ -71,6 +71,15 @@ Los usuarios con rol `admin` ven un panel en la sidebar para gestionar usuarios:
 ### Copia de seguridad de mensajes
 Los usuarios registrados tienen persistencia de mensajes globales, privados y de grupo. Los invitados pierden el historial al reconectar.
 
+### Portapapeles compartido 📋
+Comparte el contenido de tu portapapeles con todos los usuarios de la red con un solo clic. Los items compartidos aparecen en un panel lateral y pueden copiarse al portapapeles local con un clic.
+
+### Búsqueda de mensajes 🔍
+Campo de búsqueda en el encabezado del chat para filtrar mensajes por contenido en tiempo real.
+
+### Descubrimiento mDNS 📡
+El servidor se anuncia automáticamente como `localchat.local` en la red. Los clientes compatibles pueden descubrirlo sin necesidad de saber la IP.
+
 ## Tecnologías
 
 - **Frontend**: React 18, Vite, Socket.IO Client
@@ -106,6 +115,7 @@ client/
       RoomView.jsx     # Vista de sala de dados
       DiceRoller.jsx   # Tirador de dados
       EmojiPicker.jsx  # Selector de emojis
+      ClipboardPanel.jsx  # Portapapeles compartido
     services/
       socket.js        # Conexión Socket.IO con ping
       avatar.js        # Utilidades de avatar
@@ -116,5 +126,10 @@ client/
 **Error de conexión**: verifica que el servidor esté corriendo y que el puerto 3000 esté accesible.
 
 **Archivos grandes**: el límite es 100MB. Si necesitas más, cambia `limits.fileSize` en `server/src/routes/files.js`.
+
+**Variables de entorno** (opcionales):
+- `JWT_SECRET`: clave secreta para tokens JWT. Si no se define, se genera una automática al arrancar.
+- `PORT`: puerto del servidor (por defecto 3000).
+- `VITE_SERVER_URL`: URL del servidor para el cliente (útil si el frontend se sirve desde otro puerto).
 
 **IP local**: edita `server/config.json` con la IP correcta de tu red local.

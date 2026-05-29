@@ -10,9 +10,12 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.0",
+    "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
+    "multicast-dns": "^7.2.5",
     "socket.io": "^4.7.5"
   }
 }

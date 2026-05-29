@@ -1,9 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./auth/auth');
 const downloadRoutes = require('./routes/download');
@@ -24,8 +26,16 @@ try {
   }
 } catch {}
 
+const allowedOrigins = [undefined, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+if (LOCAL_IP !== '127.0.0.1') {
+  allowedOrigins.push(`http://${LOCAL_IP}:3000`);
+}
+
 const corsOptions = {
-  origin: (origin, cb) => cb(null, true),
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(null, true);
+  },
   credentials: true
 };
 
@@ -35,6 +45,13 @@ const io = new Server(server, {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' } });
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Demasiadas subidas. Intenta de nuevo en un minuto.' } });
+
+app.use('/auth', authLimiter, authRoutes);
+app.use('/api/files/upload', uploadLimiter);
+app.use('/api/avatar/upload', uploadLimiter);
 
 app.use('/auth', authRoutes);
 app.use('/api/webdownload', downloadRoutes);
@@ -74,4 +91,23 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  App:      http://${LOCAL_IP}:${PORT}/app`);
   console.log(`  Chat:     ws://${LOCAL_IP}:${PORT} (Socket.IO)`);
   console.log(`========================================\n`);
+
+  try {
+    const mdns = require('multicast-dns')();
+    mdns.on('query', (query) => {
+      if (query.questions?.some(q => q.name === 'localchat.local' && q.type === 'A')) {
+        mdns.respond({
+          answers: [{
+            name: 'localchat.local',
+            type: 'A',
+            ttl: 300,
+            data: LOCAL_IP
+          }]
+        });
+      }
+    });
+    console.log(`  📡 mDNS: localchat.local → ${LOCAL_IP}\n`);
+  } catch (e) {
+    // mDNS no disponible
+  }
 });

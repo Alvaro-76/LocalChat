@@ -1,4 +1,4 @@
-const COLORS = ['#e94560', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e67e22', '#ff6b6b', '#48dbfb', '#ff9ff3'];
+const COLORS = ['#4F6CF7', '#22B05E', '#E85656', '#F0A030', '#8B6CF7', '#3B9BD0', '#D45080', '#3BCB6E', '#6B85F7', '#E07040'];
 
 export function hashColor(str) {
   let hash = 0;
@@ -13,7 +13,7 @@ export function getInitials(name) {
 }
 
 export function getAvatarData(user) {
-  if (!user) return { initials: '?', color: '#555', type: 'color' };
+  if (!user) return { initials: '?', color: '#888', type: 'color' };
 
   const initials = getInitials(user.username);
   const avatar = user.avatar || {};

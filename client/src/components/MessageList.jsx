@@ -15,76 +15,104 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
     return { username: name };
   }
 
+  const typingList = typingUsers ? Object.keys(typingUsers).filter((u) => typingUsers[u]) : [];
+
   const styles = {
     container: {
-      flex: 1, overflowY: 'auto', padding: '20px 24px',
-      display: 'flex', flexDirection: 'column', gap: '8px'
+      flex: 1, overflowY: 'auto', padding: '20px 60px',
+      display: 'flex', flexDirection: 'column', gap: '4px',
+      background: 'var(--bg)'
     },
     messageRow: (isOwn) => ({
       display: 'flex',
       flexDirection: isOwn ? 'row-reverse' : 'row',
       alignItems: 'flex-end',
       gap: '8px',
-      maxWidth: '80%',
-      alignSelf: isOwn ? 'flex-end' : 'flex-start'
+      maxWidth: '68%',
+      alignSelf: isOwn ? 'flex-end' : 'flex-start',
+      animation: 'msgSlideIn 0.3s ease-out'
     }),
-    avatarCol: { flexShrink: 0 },
+    avatarCol: { flexShrink: 0, alignSelf: 'flex-end' },
+    bubbleWrap: { display: 'flex', flexDirection: 'column' },
     bubble: (isOwn, isPrivate) => ({
-      background: isOwn ? '#e94560' : (isPrivate ? '#1a3a5c' : '#0f3460'),
-      padding: '10px 16px', borderRadius: '12px',
-      borderBottomRightRadius: isOwn ? '4px' : '12px',
-      borderBottomLeftRadius: isOwn ? '12px' : '4px',
+      background: isOwn ? 'var(--bubble-own)' : 'var(--bubble-other)',
+      padding: '8px 14px', borderRadius: '18px',
+      borderBottomRightRadius: isOwn ? '4px' : '18px',
+      borderBottomLeftRadius: isOwn ? '18px' : '4px',
+      boxShadow: '0 1px 1px var(--shadow)',
+      border: isOwn ? '1px solid var(--bubble-own-border)' : '1px solid var(--bubble-other-border)',
       position: 'relative'
     }),
     header: {
-      fontSize: '12px', opacity: 0.7, marginBottom: '4px',
+      fontSize: '12px', fontWeight: 600,
+      marginBottom: '2px',
       display: 'flex', justifyContent: 'space-between', gap: '12px'
     },
-    content: { fontSize: '15px', wordBreak: 'break-word', lineHeight: 1.4 },
+    headerName: (isOwn) => ({
+      color: isOwn ? 'var(--danger)' : 'var(--accent)'
+    }),
+    content: { fontSize: '14.5px', wordBreak: 'break-word', lineHeight: 1.4, color: 'var(--text)' },
     fileMsg: {
       display: 'flex', alignItems: 'center', gap: '10px',
-      background: 'rgba(255,255,255,0.08)', borderRadius: '8px',
+      background: 'var(--border-light)', borderRadius: '12px',
       padding: '8px 12px', cursor: 'pointer', marginTop: '4px'
     },
     fileIcon: { fontSize: '28px', flexShrink: 0 },
     fileInfo: { flex: 1, minWidth: 0 },
-    fileName: { fontSize: '13px', fontWeight: 600, wordBreak: 'break-all' },
-    fileSize: { fontSize: '11px', opacity: 0.6, marginTop: '2px' },
-    fileDownload: { fontSize: '11px', color: '#4ade80', textDecoration: 'none' },
+    fileName: { fontSize: '13px', fontWeight: 600, wordBreak: 'break-all', color: 'var(--text)' },
+    fileSize: { fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' },
+    fileDownload: { fontSize: '11px', color: 'var(--success)', textDecoration: 'none', fontWeight: 600 },
     uploadingOverlay: {
       display: 'flex', alignItems: 'center', gap: '10px',
-      padding: '8px 12px', background: 'rgba(255,255,255,0.05)',
-      borderRadius: '8px'
+      padding: '8px 12px', background: 'var(--border-light)',
+      borderRadius: '12px'
     },
     uploadingIcon: { fontSize: '28px', flexShrink: 0 },
-    uploadingText: { fontSize: '12px', opacity: 0.6 },
-    time: { fontSize: '11px', opacity: 0.5, marginTop: '4px', textAlign: 'right' },
+    uploadingText: { fontSize: '12px', color: 'var(--text-secondary)' },
+    time: { fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', textAlign: 'right' },
     deleteBtn: {
-      background: 'none', border: 'none', color: '#ff6b6b',
+      background: 'none', border: 'none', color: 'var(--danger)',
       cursor: 'pointer', fontSize: '11px', padding: '0 4px'
     },
     empty: {
       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#555', fontSize: '14px'
+      color: 'var(--text-muted)', fontSize: '14px', flexDirection: 'column', gap: '8px'
     },
+    emptyIcon: { fontSize: '48px', opacity: 0.5 },
     privateTag: {
-      fontSize: '10px', background: '#2a5a8c', padding: '1px 6px',
-      borderRadius: '4px', marginLeft: '4px'
+      fontSize: '10px', background: 'var(--accent)', color: '#fff',
+      padding: '1px 6px', borderRadius: '4px', marginLeft: '4px'
     },
     typingIndicator: {
-      fontSize: '13px', color: '#888', fontStyle: 'italic',
-      padding: '4px 24px'
-    }
+      fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic',
+      padding: '6px 60px', background: 'var(--bg)',
+      display: 'flex', alignItems: 'center', gap: '8px',
+      borderTop: '1px solid var(--border)'
+    },
+    typingDots: {
+      display: 'flex', gap: '3px', alignItems: 'center'
+    },
+    typingDot: (delay) => ({
+      width: '6px', height: '6px', borderRadius: '50%',
+      background: 'var(--text-muted)',
+      animation: `typingDot 1.4s ${delay}s infinite`
+    })
   };
 
-  const typingList = typingUsers ? Object.keys(typingUsers).filter((u) => typingUsers[u]) : [];
+  if (messages.length === 0) {
+    return (
+      <div style={{ ...styles.container, justifyContent: 'center', alignItems: 'center' }}>
+        <div style={styles.emptyIcon}>💬</div>
+        <div style={styles.empty}>No hay mensajes aún</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Escribe algo para comenzar</div>
+        <div ref={bottomRef} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={styles.container}>
-        {messages.length === 0 && (
-          <div style={styles.empty}>No hay mensajes aún</div>
-        )}
         {messages.map((msg, i) => {
           const isOwn = msg.from_user === currentUser || msg.from === currentUser;
           const isPrivate = msg.to_user || msg.to;
@@ -101,22 +129,22 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
             const fu = msg._file;
             return (
               <div key={msg._tempId || i} style={styles.messageRow(msg.from === currentUser)}>
-                <div style={styles.avatarCol}>
-                  <Avatar user={{ username: msg.from }} size={28} />
-                </div>
-                <div style={styles.bubble(msg.from === currentUser, false)}>
-                  <div style={styles.header}>
-                    <span>{msg.from}</span>
-                  </div>
-                  <div style={styles.uploadingOverlay}>
-                    <span style={styles.uploadingIcon}>📄</span>
-                    <div style={styles.fileInfo}>
-                      <div style={styles.fileName}>{fu?.name || 'Archivo'}</div>
-                      <div style={styles.uploadingText}>Subiendo...</div>
+                <div style={{ ...styles.avatarCol, visibility: 'hidden' }}><Avatar user={{ username: msg.from }} size={32} /></div>
+                <div style={styles.bubbleWrap}>
+                  <div style={styles.bubble(msg.from === currentUser, false)}>
+                    <div style={styles.header}>
+                      <span style={styles.headerName(msg.from === currentUser)}>{msg.from}</span>
                     </div>
-                  </div>
-                  <div style={styles.time}>
-                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                    <div style={styles.uploadingOverlay}>
+                      <span style={styles.uploadingIcon}>📄</span>
+                      <div style={styles.fileInfo}>
+                        <div style={styles.fileName}>{fu?.name || 'Archivo'}</div>
+                        <div style={styles.uploadingText}>Subiendo...</div>
+                      </div>
+                    </div>
+                    <div style={styles.time}>
+                      {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -141,30 +169,30 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
 
             return (
               <div key={msg.id || i} style={styles.messageRow(isOwn)}>
-                <div style={styles.avatarCol}>
-                  <Avatar user={userObj} size={28} />
-                </div>
-                <div style={styles.bubble(isOwn, isPrivate)}>
-                  <div style={styles.header}>
-                    <span>
-                      {f.from || msg.from_user || msg.from}
-                      {isPrivate && <span style={styles.privateTag}>privado</span>}
-                    </span>
-                    {isAdmin && !isOwn && msg.id && (
-                      <button style={styles.deleteBtn} onClick={() => onDelete(msg.id)}>✕</button>
-                    )}
-                  </div>
-                  <a href={fileUrl} style={{ textDecoration: 'none', color: 'inherit' }} download>
-                    <div style={styles.fileMsg}>
-                      <span style={styles.fileIcon}>{icon}</span>
-                      <div style={styles.fileInfo}>
-                        <div style={styles.fileName}>{f.fileName}</div>
-                        <div style={styles.fileSize}>{size} — <span style={styles.fileDownload}>Descargar</span></div>
-                      </div>
+                <div style={styles.avatarCol}><Avatar user={userObj} size={32} /></div>
+                <div style={styles.bubbleWrap}>
+                  <div style={styles.bubble(isOwn, isPrivate)}>
+                    <div style={styles.header}>
+                      <span>
+                        <span style={styles.headerName(isOwn)}>{f.from || msg.from_user || msg.from}</span>
+                        {isPrivate && <span style={styles.privateTag}>privado</span>}
+                      </span>
+                      {isAdmin && !isOwn && msg.id && (
+                        <button style={styles.deleteBtn} onClick={() => onDelete(msg.id)}>✕</button>
+                      )}
                     </div>
-                  </a>
-                  <div style={styles.time}>
-                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                    <a href={fileUrl} style={{ textDecoration: 'none', color: 'inherit' }} download>
+                      <div style={styles.fileMsg}>
+                        <span style={styles.fileIcon}>{icon}</span>
+                        <div style={styles.fileInfo}>
+                          <div style={styles.fileName}>{f.fileName}</div>
+                          <div style={styles.fileSize}>{size} — <span style={styles.fileDownload}>Descargar</span></div>
+                        </div>
+                      </div>
+                    </a>
+                    <div style={styles.time}>
+                      {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -173,22 +201,22 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
 
           return (
             <div key={msg.id || i} style={styles.messageRow(isOwn)}>
-              <div style={styles.avatarCol}>
-                <Avatar user={userObj} size={28} />
-              </div>
-              <div style={styles.bubble(isOwn, isPrivate)}>
-                <div style={styles.header}>
-                  <span>
-                    {msg.from_user || msg.from}
-                    {isPrivate && <span style={styles.privateTag}>privado</span>}
-                  </span>
-                  {isAdmin && !isOwn && msg.id && (
-                    <button style={styles.deleteBtn} onClick={() => onDelete(msg.id)}>✕</button>
-                  )}
-                </div>
-                <div style={styles.content}>{msg.content}</div>
-                <div style={styles.time}>
-                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+              <div style={styles.avatarCol}><Avatar user={userObj} size={32} /></div>
+              <div style={styles.bubbleWrap}>
+                <div style={styles.bubble(isOwn, isPrivate)}>
+                  <div style={styles.header}>
+                    <span>
+                      <span style={styles.headerName(isOwn)}>{msg.from_user || msg.from}</span>
+                      {isPrivate && <span style={styles.privateTag}>privado</span>}
+                    </span>
+                    {isAdmin && !isOwn && msg.id && (
+                      <button style={styles.deleteBtn} onClick={() => onDelete(msg.id)}>✕</button>
+                    )}
+                  </div>
+                  <div style={styles.content}>{msg.content}</div>
+                  <div style={styles.time}>
+                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                  </div>
                 </div>
               </div>
             </div>
@@ -198,7 +226,14 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
       </div>
       {typingList.length > 0 && (
         <div style={styles.typingIndicator}>
-          {typingList.join(', ')} {typingList.length === 1 ? 'está escribiendo...' : 'están escribiendo...'}
+          <div style={styles.typingDots}>
+            <div style={styles.typingDot(0)} />
+            <div style={styles.typingDot(0.2)} />
+            <div style={styles.typingDot(0.4)} />
+          </div>
+          <span>
+            {typingList.join(', ')} {typingList.length === 1 ? 'está escribiendo...' : 'están escribiendo...'}
+          </span>
         </div>
       )}
     </div>
