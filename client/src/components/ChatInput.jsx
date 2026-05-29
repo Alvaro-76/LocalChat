@@ -1,12 +1,44 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import EmojiPicker from './EmojiPicker';
+import { getSocket } from '../services/socket';
 
-export default function ChatInput({ onSend, onFileUpload, placeholder }) {
+export default function ChatInput({ onSend, onFileUpload, placeholder, typingTo }) {
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(false);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
   const cursorRef = useRef(0);
+  const typingTimerRef = useRef(null);
+  const wasTypingRef = useRef(false);
+
+  const emitTyping = useCallback((isTyping) => {
+    const socket = getSocket();
+    if (!socket) return;
+    const event = isTyping ? 'typing:start' : 'typing:stop';
+    socket.emit(event, { to: typingTo || null });
+  }, [typingTo]);
+
+  function handleTextChange(value, cursorPos) {
+    setText(value);
+    cursorRef.current = cursorPos;
+
+    if (value.trim().length > 0) {
+      if (!wasTypingRef.current) {
+        wasTypingRef.current = true;
+        emitTyping(true);
+      }
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        wasTypingRef.current = false;
+        emitTyping(false);
+      }, 2000);
+    } else {
+      if (wasTypingRef.current) {
+        wasTypingRef.current = false;
+        emitTyping(false);
+      }
+    }
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -14,6 +46,11 @@ export default function ChatInput({ onSend, onFileUpload, placeholder }) {
     if (!trimmed) return;
     onSend(trimmed);
     setText('');
+    if (wasTypingRef.current) {
+      wasTypingRef.current = false;
+      emitTyping(false);
+    }
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
   }
 
   function handleEmojiSelect(emoji) {
@@ -127,8 +164,7 @@ export default function ChatInput({ onSend, onFileUpload, placeholder }) {
           placeholder={placeholder || 'Escribe un mensaje...'}
           value={text}
           onChange={(e) => {
-            setText(e.target.value);
-            cursorRef.current = e.target.selectionStart || 0;
+            handleTextChange(e.target.value, e.target.selectionStart || 0);
           }}
           onSelect={(e) => {
             cursorRef.current = e.target.selectionStart || 0;

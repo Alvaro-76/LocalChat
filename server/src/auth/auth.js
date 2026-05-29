@@ -23,7 +23,8 @@ router.post('/register', async (req, res) => {
     db.createUser(username, hash, role);
     const user = db.getUser(username);
     const token = generateToken(user);
-    res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    const avatar = user.avatar || { type: 'color', color: db.stringToColor(user.username) };
+    res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, avatar } });
   } catch (err) {
     res.status(500).json({ error: 'Error al registrar' });
   }
@@ -44,7 +45,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
     const token = generateToken(user);
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    const avatar = user.avatar || { type: 'color', color: db.stringToColor(user.username) };
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, avatar } });
   } catch (err) {
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }

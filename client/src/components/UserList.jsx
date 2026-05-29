@@ -1,4 +1,5 @@
 import React from 'react';
+import Avatar from './Avatar';
 
 export default function UserList({ users, currentUser, selectedUser, onSelect, onGlobalClick, activeTab }) {
   const styles = {
@@ -22,18 +23,11 @@ export default function UserList({ users, currentUser, selectedUser, onSelect, o
       marginBottom: '2px', transition: 'all 0.2s',
       background: isSelected ? '#0f3460' : 'transparent'
     }),
-    avatar: {
-      width: '32px', height: '32px', borderRadius: '50%',
-      background: '#e94560', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', fontSize: '14px', fontWeight: 600,
-      flexShrink: 0
-    },
     name: { fontSize: '14px', fontWeight: 500 },
-    status: (isCurrent) => ({
+    status: {
       width: '8px', height: '8px', borderRadius: '50%',
-      background: isCurrent ? '#4ade80' : '#4ade80',
-      marginLeft: 'auto', flexShrink: 0
-    }),
+      background: '#4ade80', marginLeft: 'auto', flexShrink: 0
+    },
     badge: {
       fontSize: '10px', background: '#e94560', padding: '1px 5px',
       borderRadius: '4px', marginLeft: '4px'
@@ -46,7 +40,7 @@ export default function UserList({ users, currentUser, selectedUser, onSelect, o
     <div style={styles.container}>
       <div style={styles.sectionTitle}>Canales</div>
       <div style={styles.globalItem(activeTab === 'global')} onClick={onGlobalClick}>
-        <div style={{ ...styles.avatar, background: '#0f3460', fontSize: '16px' }}>#</div>
+        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#0f3460', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>#</div>
         <div style={styles.name}>General</div>
       </div>
 
@@ -55,16 +49,14 @@ export default function UserList({ users, currentUser, selectedUser, onSelect, o
         const isSelected = selectedUser?.username === u.username;
         return (
           <div key={u.username} style={styles.userItem(isSelected)} onClick={() => onSelect(u)}>
-            <div style={styles.avatar}>
-              {u.username[0].toUpperCase()}
-            </div>
+            <Avatar user={u} size={32} />
             <div>
               <div style={styles.name}>
                 {u.username}
                 {u.role === 'admin' && <span style={styles.badge}>Admin</span>}
               </div>
             </div>
-            <div style={styles.status(u.username === currentUser)} />
+            <div style={styles.status} />
           </div>
         );
       })}

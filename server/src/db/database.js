@@ -17,10 +17,38 @@ function writeDB(data) {
 
 function createUser(username, passwordHash, role = 'user') {
   const db = readDB();
-  const user = { id: db.nextUserId++, username, password_hash: passwordHash, role, created_at: new Date().toISOString() };
+  const color = stringToColor(username);
+  const user = { id: db.nextUserId++, username, password_hash: passwordHash, role, avatar: { type: 'color', color }, created_at: new Date().toISOString() };
   db.users.push(user);
   writeDB(db);
   return user;
+}
+
+function updateUserAvatar(username, avatarData) {
+  const db = readDB();
+  const user = db.users.find((u) => u.username === username);
+  if (user) {
+    user.avatar = avatarData;
+    writeDB(db);
+  }
+}
+
+function updateUserAvatarColor(username, color) {
+  const db = readDB();
+  const user = db.users.find((u) => u.username === username);
+  if (user) {
+    user.avatar = { type: 'color', color };
+    writeDB(db);
+  }
+}
+
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = ['#e94560', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e67e22', '#ff6b6b', '#48dbfb', '#ff9ff3'];
+  return colors[Math.abs(hash) % colors.length];
 }
 
 function getUser(username) {
@@ -64,7 +92,27 @@ function deleteMessage(id) {
 
 function getAllUsers() {
   const db = readDB();
-  return db.users.map(({ id, username, role, created_at }) => ({ id, username, role, created_at }));
+  return db.users.map(({ id, username, role, created_at, avatar }) => ({ id, username, role, created_at, avatar: avatar || { type: 'color', color: stringToColor(username) } }));
+}
+
+function saveGroupMessage(groupId, from, content) {
+  const db = readDB();
+  const msg = {
+    id: db.nextMessageId++,
+    groupId,
+    from_user: from,
+    content,
+    persistent: 1,
+    created_at: new Date().toISOString()
+  };
+  db.messages.push(msg);
+  writeDB(db);
+  return msg;
+}
+
+function getGroupMessages(groupId) {
+  const db = readDB();
+  return db.messages.filter((m) => m.groupId === groupId && m.persistent);
 }
 
 module.exports = {
@@ -74,5 +122,10 @@ module.exports = {
   getGlobalMessages,
   getDMs,
   deleteMessage,
-  getAllUsers
+  getAllUsers,
+  updateUserAvatar,
+  updateUserAvatarColor,
+  stringToColor,
+  saveGroupMessage,
+  getGroupMessages
 };

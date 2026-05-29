@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { connectSocket } from '../services/socket';
+import Avatar from '../components/Avatar';
+import { hashColor } from '../services/avatar';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 
@@ -23,7 +25,7 @@ export default function Login({ onLogin }) {
           return;
         }
         const socket = connectSocket();
-        const userData = { username: username.trim(), role: 'anonymous' };
+        const userData = { username: username.trim(), role: 'anonymous', avatar: { type: 'color', color: hashColor(username.trim()) } };
         socket.emit('user:join', { username: userData.username });
         onLogin(userData);
         setLoading(false);
@@ -70,6 +72,10 @@ export default function Login({ onLogin }) {
       background: active ? '#e94560' : '#0f3460', color: '#fff',
       transition: 'all 0.2s'
     }),
+    avatarPreview: {
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: '8px', marginBottom: '20px'
+    },
     input: {
       width: '100%', padding: '12px 16px', marginBottom: '12px',
       border: '1px solid #0f3460', borderRadius: '8px', fontSize: '15px',
@@ -84,10 +90,20 @@ export default function Login({ onLogin }) {
     link: { textAlign: 'center', marginTop: '16px', color: '#888', fontSize: '13px', cursor: 'pointer' }
   };
 
+  const previewUser = username.trim()
+    ? { username: username.trim(), avatar: { type: 'color', color: hashColor(username.trim()) } }
+    : null;
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>Chat en Red</h1>
+        {previewUser && (
+          <div style={styles.avatarPreview}>
+            <Avatar user={previewUser} size={64} />
+            <div style={{ fontSize: '13px', color: '#888' }}>{previewUser.username}</div>
+          </div>
+        )}
         <div style={styles.tabs}>
           <button style={styles.tab(mode === 'login')} onClick={() => { setMode('login'); setError(''); }}>Iniciar sesión</button>
           <button style={styles.tab(mode === 'register')} onClick={() => { setMode('register'); setError(''); }}>Registrarse</button>

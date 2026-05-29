@@ -4,6 +4,9 @@ const { verifyToken, JWT_SECRET } = require('../middleware/auth');
 const onlineUsers = new Map();
 const SERVER_URL = process.env.SERVER_URL || '';
 
+const groups = new Map();
+let nextGroupId = 1;
+
 function setupSocket(io) {
   io.on('connection', (socket) => {
     let currentUser = null;
@@ -22,10 +25,19 @@ function setupSocket(io) {
         }
       }
 
+      const registeredUser = db.getUser(user.username);
+      let avatar = { type: 'color', color: db.stringToColor(user.username) };
+      if (registeredUser && registeredUser.avatar) {
+        avatar = registeredUser.avatar;
+      }
+
       currentUser = user;
-      onlineUsers.set(socket.id, user);
+      currentUser.avatar = avatar;
+      onlineUsers.set(socket.id, currentUser);
       io.emit('users:update', Array.from(onlineUsers.values()));
+      socket.emit('user:info', { ...currentUser });
       socket.emit('messages:global', db.getGlobalMessages());
+      socket.emit('groups:list', getGroupsForUser(user.username));
     });
 
     socket.on('message:global', (data) => {
@@ -160,6 +172,141 @@ function setupSocket(io) {
       socket.emit('admin:users:list', db.getAllUsers());
     });
 
+    socket.on('typing:start', (data) => {
+      if (!currentUser) return;
+      const { to } = data;
+      if (to) {
+        let targetSocketId = null;
+        for (const [sid, u] of onlineUsers) {
+          if (u.username === to) {
+            targetSocketId = sid;
+            break;
+          }
+        }
+        if (targetSocketId) {
+          socket.to(targetSocketId).emit('typing:update', { from: currentUser.username, typing: true });
+        }
+      } else {
+        socket.broadcast.emit('typing:update', { from: currentUser.username, typing: true });
+      }
+    });
+
+    socket.on('typing:stop', (data) => {
+      if (!currentUser) return;
+      const { to } = data;
+      if (to) {
+        let targetSocketId = null;
+        for (const [sid, u] of onlineUsers) {
+          if (u.username === to) {
+            targetSocketId = sid;
+            break;
+          }
+        }
+        if (targetSocketId) {
+          socket.to(targetSocketId).emit('typing:update', { from: currentUser.username, typing: false });
+        }
+      } else {
+        socket.broadcast.emit('typing:update', { from: currentUser.username, typing: false });
+      }
+    });
+
+    socket.on('ping:measure', () => {
+      socket.emit('pong:measure', { time: Date.now() });
+    });
+
+    socket.on('group:create', (data) => {
+      if (!currentUser) return;
+      const { name } = data;
+      if (!name || !name.trim()) return;
+      const id = nextGroupId++;
+      const group = {
+        id,
+        name: name.trim(),
+        admin: currentUser.username,
+        members: [currentUser.username],
+        messages: []
+      };
+      groups.set(id, group);
+      io.emit('groups:list', getGroupsForUser(currentUser.username));
+      socket.emit('group:created', group);
+    });
+
+    socket.on('group:invite', (data) => {
+      if (!currentUser) return;
+      const { groupId, username } = data;
+      const group = groups.get(groupId);
+      if (!group || group.admin !== currentUser.username) return;
+      if (group.members.includes(username)) return;
+
+      let targetSocketId = null;
+      for (const [sid, u] of onlineUsers) {
+        if (u.username === username) {
+          targetSocketId = sid;
+          break;
+        }
+      }
+      if (targetSocketId) {
+        socket.to(targetSocketId).emit('group:invited', {
+          groupId: group.id,
+          groupName: group.name,
+          by: currentUser.username
+        });
+      }
+    });
+
+    socket.on('group:join', (data) => {
+      if (!currentUser) return;
+      const { groupId } = data;
+      const group = groups.get(groupId);
+      if (!group) return;
+      if (!group.members.includes(currentUser.username)) {
+        group.members.push(currentUser.username);
+      }
+      group.messages = db.getGroupMessages(groupId);
+      io.emit('groups:list', getGroupsForUser(currentUser.username));
+      socket.emit('group:joined', group);
+    });
+
+    socket.on('group:leave', (data) => {
+      if (!currentUser) return;
+      const { groupId } = data;
+      const group = groups.get(groupId);
+      if (!group) return;
+      group.members = group.members.filter((m) => m !== currentUser.username);
+      io.emit('groups:list', getGroupsForUser(currentUser.username));
+      if (group.members.length === 0) {
+        groups.delete(groupId);
+      }
+    });
+
+    socket.on('group:message', (data) => {
+      if (!currentUser) return;
+      const { groupId, content } = data;
+      const group = groups.get(groupId);
+      if (!group || !group.members.includes(currentUser.username)) return;
+
+      const sanitized = content.slice(0, 500);
+      const msg = {
+        from: currentUser.username,
+        content: sanitized,
+        groupId,
+        timestamp: new Date().toISOString()
+      };
+
+      const isPersistent = currentUser.role !== 'anonymous';
+      if (isPersistent) {
+        const saved = db.saveGroupMessage(groupId, currentUser.username, sanitized);
+        msg.id = saved.id;
+      }
+
+      for (const [sid, u] of onlineUsers) {
+        if (u.username !== currentUser.username && group.members.includes(u.username)) {
+          socket.to(sid).emit('group:message:new', msg);
+        }
+      }
+      socket.emit('group:message:new', msg);
+    });
+
     socket.on('disconnect', () => {
       onlineUsers.delete(socket.id);
       if (currentUser) {
@@ -167,6 +314,10 @@ function setupSocket(io) {
       }
     });
   });
+}
+
+function getGroupsForUser(username) {
+  return Array.from(groups.values()).filter((g) => g.members.includes(username));
 }
 
 module.exports = setupSocket;

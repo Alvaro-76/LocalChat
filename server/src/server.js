@@ -8,6 +8,7 @@ const fs = require('fs');
 const authRoutes = require('./auth/auth');
 const downloadRoutes = require('./routes/download');
 const fileRoutes = require('./routes/files');
+const avatarRoutes = require('./routes/avatar');
 const setupSocket = require('./sockets/chat');
 const { setupRooms } = require('./sockets/rooms');
 
@@ -38,6 +39,7 @@ app.use(express.json());
 app.use('/auth', authRoutes);
 app.use('/api/webdownload', downloadRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/avatar', avatarRoutes);
 
 const clientBuildPath = path.join(__dirname, '..', '..', 'client', 'dist');
 app.use('/app', express.static(clientBuildPath));

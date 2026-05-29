@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import DiceRoller from './DiceRoller';
+import Avatar from './Avatar';
 
 export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder, onNextTurn, onKick, onInvite, onMessage, messages }) {
   const isAdmin = room.admin === currentUser;
@@ -170,11 +171,13 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
       flex: 1, overflowY: 'auto', padding: '8px 12px', minHeight: '100px'
     },
     chatMsg: {
-      padding: '4px 0', fontSize: '14px', borderBottom: '1px solid #0f346020'
+      padding: '4px 0', fontSize: '14px', borderBottom: '1px solid #0f346020',
+      display: 'flex', alignItems: 'flex-start', gap: '8px'
     },
+    chatMsgContent: { flex: 1 },
     chatMsgFrom: { fontSize: '11px', fontWeight: 600, color: diceColor },
-    chatMsgContent: { fontSize: '14px', wordBreak: 'break-word' },
-    chatMsgTime: { fontSize: '10px', color: '#555', float: 'right' },
+    chatMsgContentText: { fontSize: '14px', wordBreak: 'break-word' },
+    chatMsgTime: { fontSize: '10px', color: '#555', textAlign: 'right' },
     chatEmpty: { color: '#555', fontSize: '13px', textAlign: 'center', padding: '24px' },
     chatInputForm: {
       display: 'flex', gap: '6px', padding: '8px 12px',
@@ -249,9 +252,12 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
               ) : (
                 messages.map((msg, i) => (
                   <div key={i} style={styles.chatMsg}>
-                    <span style={styles.chatMsgFrom}>{msg.from}</span>
-                    <span style={styles.chatMsgTime}>{formatTime(msg.timestamp)}</span>
-                    <div style={styles.chatMsgContent}>{msg.content}</div>
+                    <Avatar user={{ username: msg.from }} size={24} />
+                    <div style={styles.chatMsgContent}>
+                      <span style={styles.chatMsgFrom}>{msg.from}</span>
+                      <div style={styles.chatMsgContentText}>{msg.content}</div>
+                    </div>
+                    <div style={styles.chatMsgTime}>{formatTime(msg.timestamp)}</div>
                   </div>
                 ))
               )}
@@ -287,9 +293,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
                   onDragOver={(e) => handleDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
                 >
-                  <div style={styles.playerAvatar(isMe)}>
-                    {username[0].toUpperCase()}
-                  </div>
+                  <Avatar user={{ username }} size={28} />
                   <div style={styles.playerInfo}>
                     <div style={styles.playerName}>
                       {username}
