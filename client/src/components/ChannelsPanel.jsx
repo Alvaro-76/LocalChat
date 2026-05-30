@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
+import { panelHeaderStyle, panelItemStyle } from './panelStyles';
+import { PasswordModal } from './Modal';
 
-export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate, onLeave, currentUser, unreadGroups }) {
+const globalChannelStyle = {
+  unreadBadge: {
+    fontSize: '11px', background: 'var(--badge-unread)', color: 'var(--badge-unread-text)',
+    minWidth: '20px', height: '20px', borderRadius: '10px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, padding: '0 6px', flexShrink: 0
+  }
+};
+
+export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate, onLeave, currentUser, unreadGroups, globalActive, onGlobalClick, unreadGlobal, onlineUsersCount }) {
   const [channelName, setChannelName] = useState('');
   const [channelPassword, setChannelPassword] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingGroup, setPendingGroup] = useState(null);
 
   function handleCreate(e) {
     e.preventDefault();
@@ -19,26 +32,11 @@ export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate,
     section: {
       borderBottom: '1px solid var(--border)'
     },
-    header: {
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '12px 20px 4px'
-    },
-    title: {
-      fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
-      textTransform: 'uppercase', letterSpacing: '0.8px'
-    },
     addBtn: {
       background: 'none', border: 'none', color: 'var(--secondary)',
       cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '0 4px',
       fontWeight: 600
     },
-    channelItem: (active) => ({
-      display: 'flex', alignItems: 'center', gap: '12px',
-      padding: '10px 20px', cursor: 'pointer',
-      transition: 'all 0.15s',
-      background: active ? 'var(--accent-light)' : 'transparent',
-      borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent'
-    }),
     channelIcon: (hasPassword) => ({
       width: '36px', height: '36px', borderRadius: '50%',
       background: hasPassword ? 'var(--secondary)' : 'var(--primary)',
@@ -86,8 +84,8 @@ export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate,
 
   return (
     <div style={styles.section}>
-      <div style={styles.header}>
-        <div style={styles.title}>Canales</div>
+      <div style={panelHeaderStyle}>
+        <div>Canales</div>
         <button style={styles.addBtn} onClick={() => setShowCreate(!showCreate)} title="Crear canal">+</button>
       </div>
 
@@ -111,7 +109,7 @@ export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate,
             onFocus={(e) => e.target.style.borderColor = 'var(--secondary)'}
             onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           />
-          {channelPassword && <div style={styles.passwordHint}>🔒 Este canal tendrá contraseña</div>}
+          {channelPassword && <div style={styles.passwordHint}>Este canal tendrá contraseña</div>}
           <div style={styles.createRow}>
             <button style={styles.createCancel} type="button" onClick={() => { setShowCreate(false); setChannelPassword(''); }}>Cancelar</button>
             <button style={styles.createSubmit} type="submit">Crear canal</button>
@@ -119,42 +117,57 @@ export default function ChannelsPanel({ groups, activeGroup, onSelect, onCreate,
         </form>
       )}
 
-      {groups.length === 0 && (
-        <div style={styles.empty}>No hay canales. Crea uno nuevo.</div>
-      )}
+      {/* General channel — always first */}
+      <div style={{...panelItemStyle, ...(globalActive ? {background: 'var(--surface-active)', color: 'var(--primary)'} : {}), borderLeft: globalActive ? '3px solid var(--accent)' : '3px solid transparent'}} onClick={onGlobalClick}>
+        <div style={styles.channelIcon(false)}>#</div>
+        <div style={styles.channelInfo}>
+          <div style={styles.channelName}>General</div>
+          <div style={styles.channelMeta}>{onlineUsersCount > 0 ? `\u25CF ${onlineUsersCount} en línea` : 'Sin conexiones'}</div>
+        </div>
+        {unreadGlobal > 0 && <div style={globalChannelStyle.unreadBadge}>{unreadGlobal}</div>}
+      </div>
 
       {groups.map((g) => {
         const isActive = activeGroup?.id === g.id;
         const hasPassword = g.hasPassword;
         const unread = unreadGroups?.[g.id] || 0;
+        const memberCount = g.members?.length || 0;
         return (
-          <div key={g.id} style={styles.channelItem(isActive)} onClick={() => {
+          <div key={g.id} style={{...panelItemStyle, ...(isActive ? {background: 'var(--surface-active)', color: 'var(--primary)'} : {}), borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent'}} onClick={() => {
             if (hasPassword && !g.members?.includes(currentUser)) {
-              const pwd = prompt('Este canal está protegido con contraseña. Ingresa la contraseña:');
-              if (pwd !== null) {
-                onSelect(g, pwd);
-              }
+              setPendingGroup(g);
+              setModalOpen(true);
             } else {
               onSelect(g);
             }
           }}>
             <div style={styles.channelIcon(hasPassword)}>
-              {hasPassword ? '🔒' : '#'}
+              {hasPassword ? '\u{1F512}' : '#'}
             </div>
             <div style={styles.channelInfo}>
               <div style={styles.channelName}>
                 {g.name}
-                <span style={styles.badge}>{g.members?.length || 0}</span>
+                {g.admin === currentUser && <span style={{fontSize:'10px',background:'var(--badge-bg)',color:'var(--badge-text)',padding:'1px 6px',borderRadius:'4px',fontWeight:600,marginLeft:'6px'}}>Admin</span>}
               </div>
               <div style={styles.channelMeta}>
-                {g.members?.length || 0} miembro{(g.members?.length || 0) !== 1 ? 's' : ''}
-                {g.admin === currentUser && ' · Admin'}
+                {hasPassword ? 'Privado' : 'Público'} · {memberCount} miembro{memberCount !== 1 ? 's' : ''}
               </div>
             </div>
-            {unread > 0 && <div style={styles.unreadBadge}>{unread}</div>}
+            {unread > 0 && <div style={globalChannelStyle.unreadBadge}>{unread}</div>}
           </div>
         );
       })}
+
+      <PasswordModal
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setPendingGroup(null); }}
+        onConfirm={(pwd) => {
+          if (pendingGroup) onSelect(pendingGroup, pwd);
+          setModalOpen(false);
+          setPendingGroup(null);
+        }}
+        channelName={pendingGroup?.name || ''}
+      />
     </div>
   );
 }

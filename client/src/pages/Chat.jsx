@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getSocket, onPing } from '../services/socket';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { getSocket } from '../services/socket';
 import MessageList from '../components/MessageList';
 import UserList from '../components/UserList';
 import ChatInput from '../components/ChatInput';
@@ -9,8 +9,9 @@ import ChannelsPanel from '../components/ChannelsPanel';
 import SettingsPanel from '../components/SettingsPanel';
 import Avatar from '../components/Avatar';
 import ClipboardPanel from '../components/ClipboardPanel';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
+import { SERVER_URL } from '../services/config';
+import { InviteModal, ConfirmModal } from '../components/Modal';
+import { setupSocketEvents } from '../services/socketEvents';
 
 const DEFAULT_SETTINGS = {
   sound: true,
@@ -30,9 +31,20 @@ function saveSettings(settings) {
   localStorage.setItem('localchat_settings', JSON.stringify(settings));
 }
 
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch {}
+  }
+  return audioCtx;
+}
+
 function playNotificationSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -51,15 +63,6 @@ function showDesktopNotification(title, body) {
     new Notification(title, { body, icon: '/favicon.ico' });
   }
 }
-
-const isViewingGlobal = (tab, selected, group, room) =>
-  tab === 'global' && !selected && !group && !room;
-
-const isViewingPrivate = (selected, tab, group, room, username) =>
-  selected?.username === username && tab === 'private' && !group && !room;
-
-const isViewingGroup = (group, selected, room, gid) =>
-  group?.id === gid && !selected && !room;
 
 export default function Chat({ user: initialUser, onLogout }) {
   const [user, setUser] = useState(initialUser);
@@ -80,14 +83,26 @@ export default function Chat({ user: initialUser, onLogout }) {
   const [groupMessages, setGroupMessages] = useState({});
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState(loadSettings);
-  const [sidebarSection, setSidebarSection] = useState('chats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [unreadGlobal, setUnreadGlobal] = useState(0);
   const [unreadPrivate, setUnreadPrivate] = useState({});
   const [unreadGroups, setUnreadGroups] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [clipboardItems, setClipboardItems] = useState([]);
-  const [showClipboard, setShowClipboard] = useState(false);
+  const [clipboardExpanded, setClipboardExpanded] = useState(false);
+  const [unreadRooms, setUnreadRooms] = useState(0);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteData, setInviteData] = useState(null);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const userRef = useRef(user);
+  userRef.current = user;
+  const viewRef = useRef({ activeTab, selectedUser, activeGroup, activeRoom });
+  viewRef.current = { activeTab, selectedUser, activeGroup, activeRoom };
 
   useEffect(() => {
     if (settings.notifications && Notification.permission === 'default') {
@@ -101,238 +116,43 @@ export default function Chat({ user: initialUser, onLogout }) {
 
     setConnected(socket.connected);
 
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('user:info', (info) => {
-      if (info.avatar) {
-        setUser((prev) => ({ ...prev, avatar: info.avatar }));
-      }
-    });
-
-    onPing((ms) => setLatency(ms));
-
-    socket.on('message:global', (msg) => {
-      setMessages((prev) => [...prev, msg]);
-      if (!isViewingGlobal(activeTab, selectedUser, activeGroup, activeRoom) && msg.from !== user.username) {
-        setUnreadGlobal((prev) => prev + 1);
-      }
-      if (settings.sound && msg.from !== user.username) playNotificationSound();
-      if (settings.notifications && msg.from !== user.username && activeTab !== 'global') {
-        showDesktopNotification(msg.from, msg.content);
-      }
-    });
-
-    socket.on('messages:global', (msgs) => {
-      setMessages(msgs);
-    });
-
-    socket.on('message:private', (msg) => {
-      setPrivateMessages((prev) => {
-        const key = [msg.from, msg.to].sort().join(':');
-        return { ...prev, [key]: [...(prev[key] || []), msg] };
-      });
-      if (msg.from !== user.username && !isViewingPrivate(selectedUser, activeTab, activeGroup, activeRoom, msg.from)) {
-        setUnreadPrivate((prev) => ({ ...prev, [msg.from]: (prev[msg.from] || 0) + 1 }));
-      }
-      if (settings.sound && msg.from !== user.username) playNotificationSound();
-      if (settings.notifications && msg.from !== user.username) {
-        showDesktopNotification(`Privado: ${msg.from}`, msg.content);
-      }
-    });
-
-    socket.on('messages:private:history', (data) => {
-      const key = [data.with, user.username].sort().join(':');
-      setPrivateMessages((prev) => ({ ...prev, [key]: data.messages }));
-    });
-
-    socket.on('users:update', (users) => {
-      setOnlineUsers(users);
-    });
-
-    socket.on('file:global', (msg) => {
-      if (msg.from === user.username) return;
-      setMessages((prev) => [...prev, msg]);
-      if (!isViewingGlobal(activeTab, selectedUser, activeGroup, activeRoom)) {
-        setUnreadGlobal((prev) => prev + 1);
-      }
-      if (settings.sound) playNotificationSound();
-    });
-
-    socket.on('file:private', (msg) => {
-      if (msg.from === user.username) return;
-      setPrivateMessages((prev) => {
-        const key = [msg.from, msg.to].sort().join(':');
-        return { ...prev, [key]: [...(prev[key] || []), msg] };
-      });
-      if (!isViewingPrivate(selectedUser, activeTab, activeGroup, activeRoom, msg.from)) {
-        setUnreadPrivate((prev) => ({ ...prev, [msg.from]: (prev[msg.from] || 0) + 1 }));
-      }
-      if (settings.sound) playNotificationSound();
-    });
-
-    socket.on('message:deleted', (data) => {
-      setMessages((prev) => prev.filter((m) => m.id !== data.id));
-      setPrivateMessages((prev) => {
-        const next = {};
-        for (const k in prev) {
-          next[k] = prev[k].filter((m) => m.id !== data.id);
-        }
-        return next;
-      });
-    });
-
-    socket.on('kicked', (data) => {
-      alert(data.message);
-      onLogout();
-    });
-
-    socket.on('admin:users:list', (users) => {
-      setAdminUsers(users);
-    });
-
-    socket.on('rooms:list', (list) => {
-      setRooms(list);
-    });
-
-    socket.on('room:created', (room) => {
-      setActiveRoom(room);
-      setRoomMessages((prev) => ({ ...prev, [room.id]: room.messages || [] }));
-    });
-
-    socket.on('room:joined', (room) => {
-      setActiveRoom(room);
-      setRoomMessages((prev) => ({ ...prev, [room.id]: room.messages || [] }));
-    });
-
-    socket.on('room:updated', (room) => {
-      setRooms((prev) => prev.map((r) => r.id === room.id ? room : r));
-      setActiveRoom((prev) => prev?.id === room.id ? room : prev);
-    });
-
-    socket.on('room:kicked', (data) => {
-      if (data.username === user.username) {
-        setActiveRoom(null);
-      }
-    });
-
-    socket.on('room:invited', (data) => {
-      if (confirm(`El usuario ${data.by} te ha invitado a la sala "${data.roomName}". ¿Deseas unirte?`)) {
-        socket.emit('room:join', { roomId: data.roomId });
-      }
-    });
-
-    socket.on('room:error', (data) => {
-      alert(data.message);
-    });
-
-    socket.on('dice:config-update', (data) => {
-      setActiveRoom((prev) => {
-        if (!prev || prev.id !== data.roomId) return prev;
-        return { ...prev, currentDiceConfig: data.counts };
-      });
-    });
-
-    socket.on('room:message:new', (msg) => {
-      setRoomMessages((prev) => {
-        const key = msg.roomId;
-        if (!key) return prev;
-        return { ...prev, [key]: [...(prev[key] || []), msg] };
-      });
-    });
-
-    socket.on('typing:update', (data) => {
-      if (data.from === user.username) return;
-      setTypingUsers((prev) => ({ ...prev, [data.from]: data.typing }));
-      if (data.typing) {
-        setTimeout(() => {
-          setTypingUsers((prev) => {
-            if (prev[data.from]) {
-              return { ...prev, [data.from]: false };
-            }
-            return prev;
-          });
-        }, 3000);
-      }
-    });
-
-    socket.on('groups:list', (list) => {
-      setGroups(list);
-    });
-
-    socket.on('group:created', (group) => {
-      setActiveGroup(group);
-      setGroupMessages((prev) => ({ ...prev, [group.id]: group.messages || [] }));
-    });
-
-    socket.on('group:joined', (group) => {
-      setActiveGroup(group);
-      setGroupMessages((prev) => ({ ...prev, [group.id]: group.messages || [] }));
-    });
-
-    socket.on('group:invited', (data) => {
-      if (confirm(`El usuario ${data.by} te ha invitado al canal "${data.groupName}". ¿Deseas unirte?`)) {
-        socket.emit('group:join', { groupId: data.groupId });
-      }
-    });
-
-    socket.on('group:error', (data) => {
-      alert(data.message);
-    });
-
-    socket.on('group:message:new', (msg) => {
-      setGroupMessages((prev) => {
-        const key = msg.groupId;
-        if (!key) return prev;
-        return { ...prev, [key]: [...(prev[key] || []), msg] };
-      });
-      if (msg.from !== user.username && !isViewingGroup(activeGroup, selectedUser, activeRoom, msg.groupId)) {
-        setUnreadGroups((prev) => ({ ...prev, [msg.groupId]: (prev[msg.groupId] || 0) + 1 }));
-      }
-      if (settings.sound && msg.from !== user.username) playNotificationSound();
-    });
-
-    socket.on('clipboard:shared', (data) => {
-      setClipboardItems((prev) => [data, ...prev].slice(0, 50));
-      if (settings.notifications) {
-        showDesktopNotification(`Clipboard de ${data.from}`, data.content.slice(0, 80));
-      }
-      if (settings.sound) playNotificationSound();
+    const cleanup = setupSocketEvents({
+      setConnected,
+      setLatency,
+      setUser,
+      setMessages,
+      setMessagesLoading,
+      setPrivateMessages,
+      setUnreadGlobal,
+      setUnreadPrivate,
+      setOnlineUsers,
+      setAdminUsers,
+      setRooms,
+      setActiveRoom,
+      setRoomMessages,
+      setUnreadRooms,
+      setTypingUsers,
+      setGroups,
+      setActiveGroup,
+      setGroupMessages,
+      setUnreadGroups,
+      setClipboardItems,
+      setInviteData,
+      setInviteModalOpen,
+      setAlertMessage,
+      setAlertModalOpen,
+      viewRef,
+      userRef,
+      settingsRef,
+      user,
+      onLogout,
+      playNotificationSound,
+      showDesktopNotification,
     });
 
     socket.emit('room:list');
 
-    return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('user:info');
-      socket.off('message:global');
-      socket.off('messages:global');
-      socket.off('message:private');
-      socket.off('messages:private:history');
-      socket.off('users:update');
-      socket.off('file:global');
-      socket.off('file:private');
-      socket.off('message:deleted');
-      socket.off('kicked');
-      socket.off('admin:users:list');
-      socket.off('rooms:list');
-      socket.off('room:created');
-      socket.off('room:joined');
-      socket.off('room:updated');
-      socket.off('room:kicked');
-      socket.off('room:invited');
-      socket.off('room:error');
-      socket.off('dice:config-update');
-      socket.off('room:message:new');
-      socket.off('typing:update');
-      socket.off('groups:list');
-      socket.off('group:created');
-      socket.off('group:joined');
-      socket.off('group:invited');
-      socket.off('group:error');
-      socket.off('group:message:new');
-      socket.off('clipboard:shared');
-    };
+    return cleanup;
   }, []);
 
   const sendMessage = useCallback((content) => {
@@ -384,9 +204,16 @@ export default function Chat({ user: initialUser, onLogout }) {
     }
 
     try {
+      if (!user.token) {
+        throw new Error('Debes registrarte para enviar archivos');
+      }
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${SERVER_URL}/api/files/upload`, { method: 'POST', body: formData });
+      const res = await fetch(`${SERVER_URL}/api/files/upload`, {
+        method: 'POST', body: formData,
+        headers: { 'Authorization': `Bearer ${user.token}` }
+      });
+      if (res.status === 401) throw new Error('Debes registrarte para enviar archivos');
       if (!res.ok) throw new Error('Error al subir archivo');
       const data = await res.json();
 
@@ -417,7 +244,8 @@ export default function Chat({ user: initialUser, onLogout }) {
       } else {
         setPrivateMessages(removeTemp);
       }
-      alert('Error al subir archivo: ' + err.message);
+      setAlertMessage('Error al subir archivo: ' + err.message);
+      setAlertModalOpen(true);
     }
   }, [activeTab, selectedUser, user.username]);
 
@@ -583,16 +411,16 @@ export default function Chat({ user: initialUser, onLogout }) {
     });
   }, []);
 
-  const currentPrivateMessages = (() => {
+  const currentPrivateMessages = useMemo(() => {
     if (!selectedUser) return [];
     const key = [selectedUser.username, user.username].sort().join(':');
     return privateMessages[key] || [];
-  })();
+  }, [selectedUser, user.username, privateMessages]);
 
-  const currentGroupMessages = (() => {
+  const currentGroupMessages = useMemo(() => {
     if (!activeGroup) return [];
     return groupMessages[activeGroup.id] || [];
-  })();
+  }, [activeGroup, groupMessages]);
 
   const styles = {
     container: {
@@ -647,21 +475,13 @@ export default function Chat({ user: initialUser, onLogout }) {
       transition: 'background 0.15s'
     },
     logoutBtn: {
-      background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)',
+      background: 'var(--danger)', border: 'none', color: '#fff',
       padding: '5px 12px', borderRadius: '8px', cursor: 'pointer',
-      fontSize: '12px', fontWeight: 500
+      fontSize: '12px', fontWeight: 600, transition: 'opacity 0.15s'
     },
-    sidebarNav: {
-      display: 'flex', borderBottom: '1px solid var(--border)',
-      background: 'var(--sidebar-bg)'
+    sectionDivider: {
+      height: '1px', background: 'var(--border)', margin: '8px 16px', flexShrink: 0
     },
-    navItem: (active) => ({
-      flex: 1, padding: '10px', border: 'none', cursor: 'pointer',
-      fontSize: '12px', fontWeight: active ? 600 : 500,
-      background: 'transparent', color: active ? 'var(--nav-active)' : 'var(--text-secondary)',
-      borderBottom: active ? '2px solid var(--nav-active)' : '2px solid transparent',
-      transition: 'all 0.15s'
-    }),
     scrollable: { flex: 1, overflowY: 'auto', background: 'var(--sidebar-bg)' },
     main: {
       flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0
@@ -685,7 +505,8 @@ export default function Chat({ user: initialUser, onLogout }) {
       padding: '12px 16px', borderTop: '1px solid var(--border)',
       background: 'var(--surface-hover)'
     },
-    adminTitle: { fontSize: '12px', fontWeight: 600, color: 'var(--accent)', marginBottom: '8px' },
+    adminTitle: { fontSize: '13px', fontWeight: 700, color: 'var(--accent)', marginBottom: '4px' },
+    adminSubtitle: { fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px' },
     adminUserItem: {
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       padding: '6px 0', fontSize: '13px', borderBottom: '1px solid var(--border-light)'
@@ -693,7 +514,7 @@ export default function Chat({ user: initialUser, onLogout }) {
     adminBtn: {
       background: 'var(--accent)', border: 'none', color: '#fff',
       padding: '3px 10px', borderRadius: '6px', cursor: 'pointer',
-      fontSize: '11px', fontWeight: 600
+      fontSize: '11px', fontWeight: 600, transition: 'opacity 0.15s'
     }
   };
 
@@ -723,56 +544,68 @@ export default function Chat({ user: initialUser, onLogout }) {
               </div>
             </div>
             <div style={styles.sidebarActions}>
-              <button style={styles.iconBtn} onClick={() => { setShowClipboard(!showClipboard); setSidebarSection('chats'); }} title="Portapapeles compartido">📋</button>
               <button style={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración">⚙️</button>
               <button style={styles.logoutBtn} onClick={onLogout}>Salir</button>
             </div>
           </div>
 
-          <div style={styles.sidebarNav}>
-            <button style={styles.navItem(sidebarSection === 'chats')} onClick={() => setSidebarSection('chats')}>Chats</button>
-            <button style={styles.navItem(sidebarSection === 'rooms')} onClick={() => setSidebarSection('rooms')}>Salas</button>
-          </div>
-
           <div style={styles.scrollable}>
-            {sidebarSection === 'chats' && (
-              <>
-                <ChannelsPanel
-                  groups={groups}
-                  activeGroup={activeGroup}
-                  onSelect={selectGroup}
-                  onCreate={createGroup}
-                  onLeave={leaveGroup}
-                  currentUser={user.username}
-                  unreadGroups={unreadGroups}
-                />
-                <UserList
-                  users={onlineUsers}
-                  currentUser={user.username}
-                  selectedUser={selectedUser}
-                  onSelect={selectUser}
-                  onGlobalClick={handleGlobalClick}
-                  activeTab={activeTab}
-                  unreadGlobal={unreadGlobal}
-                  unreadPrivate={unreadPrivate}
-                />
-                {user.role === 'admin' && (
+            <ChannelsPanel
+              groups={groups}
+              activeGroup={activeGroup}
+              onSelect={selectGroup}
+              onCreate={createGroup}
+              onLeave={leaveGroup}
+              currentUser={user.username}
+              unreadGroups={unreadGroups}
+              globalActive={activeTab === 'global' && !activeGroup && !activeRoom}
+              onGlobalClick={handleGlobalClick}
+              unreadGlobal={unreadGlobal}
+              onlineUsersCount={onlineUsers.length}
+            />
+            <UserList
+              users={onlineUsers}
+              currentUser={user.username}
+              selectedUser={selectedUser}
+              onSelect={selectUser}
+              unreadPrivate={unreadPrivate}
+            />
+
+            {user.role === 'admin' && (
                   <div style={styles.adminPanel}>
-                    <div style={styles.adminTitle}>
-                      Administración
-                      <button onClick={loadAdminUsers} style={{ ...styles.adminBtn, marginLeft: '8px', background: 'var(--text-secondary)' }}>↻</button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <div>
+                        <div style={styles.adminTitle}>Panel de administración</div>
+                        <div style={styles.adminSubtitle}>Usuarios del servidor</div>
+                      </div>
+                      <button onClick={loadAdminUsers} style={{ ...styles.adminBtn, background: 'var(--text-secondary)' }}>
+                        ↻ Cargar
+                      </button>
                     </div>
+                    {adminUsers.length === 0 && (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0' }}>
+                        Presiona ↻ Cargar para ver los usuarios
+                      </div>
+                    )}
                     {adminUsers.map((u) => (
-                      <div key={u.id} style={styles.adminUserItem}>
-                        <span style={{ color: 'var(--text)' }}>{u.username} <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>({u.role})</span></span>
-                        <button style={styles.adminBtn} onClick={() => kickUser(u.username)}>Expulsar</button>
+                      <div key={u.username} style={styles.adminUserItem}>
+                        <div>
+                          <span style={{ color: 'var(--text)', fontWeight: 500 }}>{u.username}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '11px', marginLeft: '6px' }}>
+                            {u.role === 'admin' ? 'Admin' : u.isRegistered ? 'Registrado' : 'Invitado'}
+                          </span>
+                        </div>
+                        {u.username !== user.username && (
+                          <button style={{ ...styles.adminBtn, background: 'var(--danger)' }} onClick={() => kickUser(u.username)}>
+                            Expulsar
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-              </>
-            )}
-            {sidebarSection === 'rooms' && (
+            <div style={styles.sectionDivider} />
+            <div style={{borderBottom: '1px solid var(--border)'}}>
               <RoomsPanel
                 rooms={rooms}
                 activeRoom={activeRoom}
@@ -781,15 +614,34 @@ export default function Chat({ user: initialUser, onLogout }) {
                 onJoin={joinRoom}
                 currentUser={user.username}
               />
-            )}
-            {showClipboard && (
-              <ClipboardPanel
-                items={clipboardItems}
-                onSend={shareClipboard}
-                onCopy={sendToClipboard}
-                currentUser={user.username}
-              />
-            )}
+            </div>
+            <div style={{borderBottom: '1px solid var(--border)'}}>
+              <div
+                style={{
+                  padding: '12px 16px', fontSize: '12px', fontWeight: 600,
+                  color: 'var(--text-secondary)', textTransform: 'uppercase',
+                  letterSpacing: '0.8px', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', gap: '6px', userSelect: 'none'
+                }}
+                onClick={() => setClipboardExpanded(!clipboardExpanded)}
+              >
+                Portapapeles
+                {clipboardItems.length > 0 && (
+                  <span style={{fontSize:'10px',background:'var(--badge-bg)',color:'var(--badge-text)',padding:'1px 6px',borderRadius:'8px',fontWeight:600}}>
+                    {clipboardItems.length}
+                  </span>
+                )}
+                <span style={{marginLeft:'auto',fontSize:'10px',color:'var(--text-muted)'}}>{clipboardExpanded ? '▼' : '▶'}</span>
+              </div>
+              {clipboardExpanded && (
+                <ClipboardPanel
+                  items={clipboardItems}
+                  onSend={shareClipboard}
+                  onCopy={sendToClipboard}
+                  currentUser={user.username}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -821,16 +673,42 @@ export default function Chat({ user: initialUser, onLogout }) {
                 <div style={styles.headerSub}>{headerSub}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  style={{
-                    padding: '6px 12px', border: '1px solid var(--border)',
-                    borderRadius: '8px', fontSize: '13px', width: '200px',
-                    background: 'var(--input-bg)', color: 'var(--text)', outline: 'none'
-                  }}
-                  placeholder="Buscar mensajes..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    style={{
+                      padding: '6px 12px', border: '1px solid var(--border)',
+                      borderRadius: '8px', fontSize: '13px', width: '200px',
+                      paddingRight: searchQuery ? '28px' : '12px',
+                      background: 'var(--input-bg)', color: 'var(--text)', outline: 'none'
+                    }}
+                    placeholder="Buscar mensajes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        position: 'absolute', right: '6px', top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '14px', color: 'var(--text-muted)', padding: '4px',
+                        lineHeight: 1, borderRadius: '4px'
+                      }}
+                      title="Limpiar búsqueda"
+                    >✕</button>
+                  )}
+                </div>
+                {searchQuery && (() => {
+                  const filtered = (activeTab === 'global' ? messages : activeGroup ? currentGroupMessages : currentPrivateMessages)
+                    .filter((m) => (m.content || '').toLowerCase().includes(searchQuery.toLowerCase()));
+                  const count = filtered.length;
+                  return (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {count} resultado{count !== 1 ? 's' : ''}
+                    </span>
+                  );
+                })()}
                 {activeGroup && (
                   <button style={{
                     padding: '6px 14px', border: '2px solid var(--danger)',
@@ -852,6 +730,8 @@ export default function Chat({ user: initialUser, onLogout }) {
                 isAdmin={user.role === 'admin'}
                 onDelete={deleteMessage}
                 typingUsers={activeTab === 'global' || (selectedUser && activeTab === 'private') ? typingUsers : undefined}
+                loading={messagesLoading && activeTab === 'global' && messages.length === 0}
+                searchQuery={searchQuery}
               />
               <ChatInput
                 onSend={sendMessage}
@@ -873,6 +753,35 @@ export default function Chat({ user: initialUser, onLogout }) {
           onAvatarChange={(avatar) => setUser((prev) => ({ ...prev, avatar }))}
         />
       )}
+
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => { setInviteModalOpen(false); setInviteData(null); }}
+        onConfirm={() => {
+          const socket = getSocket();
+          if (socket && inviteData) {
+            if (inviteData.type === 'sala') {
+              socket.emit('room:join', { roomId: inviteData.id });
+            } else {
+              socket.emit('group:join', { groupId: inviteData.id });
+            }
+          }
+          setInviteModalOpen(false);
+          setInviteData(null);
+        }}
+        from={inviteData?.from || ''}
+        name={inviteData?.name || ''}
+        type={inviteData?.type || 'canal'}
+      />
+
+      <ConfirmModal
+        isOpen={alertModalOpen}
+        onClose={() => setAlertModalOpen(false)}
+        onConfirm={() => setAlertModalOpen(false)}
+        title="Aviso"
+        message={alertMessage}
+        confirmText="Entendido"
+      />
     </div>
   );
 }

@@ -27,7 +27,7 @@ export function getAvatarData(user) {
   };
 }
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
+import { SERVER_URL } from './config';
 
 export function getAvatarUrl(username) {
   return `${SERVER_URL}/api/avatar/${encodeURIComponent(username)}`;

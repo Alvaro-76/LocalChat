@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
+import ErrorBoundary from './components/ErrorBoundary';
 import { connectSocket, disconnectSocket } from './services/socket';
 import { initTheme } from './services/theme';
 
@@ -20,9 +21,9 @@ export default function App() {
     setUser(null);
   }, []);
 
-  if (!user) {
-    return <Login onLogin={handleLogin} />;
-  }
-
-  return <Chat user={user} onLogout={handleLogout} />;
+  return (
+    <ErrorBoundary>
+      {!user ? <Login onLogin={handleLogin} /> : <Chat user={user} onLogout={handleLogout} />}
+    </ErrorBoundary>
+  );
 }

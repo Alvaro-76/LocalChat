@@ -34,7 +34,7 @@ if (LOCAL_IP !== '127.0.0.1') {
 const corsOptions = {
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(null, true);
+    cb(new Error('Not allowed by CORS'));
   },
   credentials: true
 };
@@ -44,7 +44,13 @@ const io = new Server(server, {
 });
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
 
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' } });
 const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Demasiadas subidas. Intenta de nuevo en un minuto.' } });
@@ -53,7 +59,6 @@ app.use('/auth', authLimiter, authRoutes);
 app.use('/api/files/upload', uploadLimiter);
 app.use('/api/avatar/upload', uploadLimiter);
 
-app.use('/auth', authRoutes);
 app.use('/api/webdownload', downloadRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/avatar', avatarRoutes);

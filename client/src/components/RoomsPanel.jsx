@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import { panelHeaderStyle, panelItemStyle } from './panelStyles';
+import { PasswordModal } from './Modal';
 
 export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJoin, currentUser }) {
   const [roomName, setRoomName] = useState('');
   const [roomPassword, setRoomPassword] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingRoom, setPendingRoom] = useState(null);
 
   function handleCreate(e) {
     e.preventDefault();
@@ -22,26 +26,11 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
     section: {
       borderBottom: '1px solid var(--border)'
     },
-    header: {
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '12px 20px 4px'
-    },
-    title: {
-      fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
-      textTransform: 'uppercase', letterSpacing: '0.8px'
-    },
     addBtn: {
       background: 'none', border: 'none', color: 'var(--accent)',
       cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '0 4px',
       fontWeight: 600
     },
-    roomItem: (active) => ({
-      display: 'flex', alignItems: 'center', gap: '12px',
-      padding: '10px 20px', cursor: 'pointer',
-      transition: 'all 0.15s',
-      background: active ? 'var(--accent-light)' : 'transparent',
-      borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent'
-    }),
     roomIcon: (hasPassword) => ({
       width: '36px', height: '36px', borderRadius: '50%',
       background: hasPassword ? 'var(--secondary)' : 'var(--primary)',
@@ -83,13 +72,17 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
     passwordHint: { fontSize: '11px', color: 'var(--secondary)', marginTop: '2px', fontWeight: 600 },
     empty: {
       color: 'var(--text-muted)', fontSize: '12px', padding: '8px 20px 12px'
+    },
+    sectionLabel: {
+      fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)',
+      padding: '8px 20px 2px', textTransform: 'uppercase', letterSpacing: '0.5px'
     }
   };
 
   return (
     <div style={styles.section}>
-      <div style={styles.header}>
-        <div style={styles.title}>Salas de dados</div>
+      <div style={panelHeaderStyle}>
+        <div>Salas de dados</div>
         <button style={styles.addBtn} onClick={() => setShowCreate(!showCreate)} title="Crear sala">+</button>
       </div>
 
@@ -113,7 +106,7 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
             onFocus={(e) => e.target.style.borderColor = 'var(--secondary)'}
             onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           />
-          {roomPassword && <div style={styles.passwordHint}>🔒 Esta sala tendrá contraseña</div>}
+          {roomPassword && <div style={styles.passwordHint}>Esta sala tendrá contraseña</div>}
           <div style={styles.createRow}>
             <button style={styles.createCancel} type="button" onClick={() => { setShowCreate(false); setRoomPassword(''); }}>Cancelar</button>
             <button style={styles.createSubmit} type="submit">Crear sala</button>
@@ -127,11 +120,11 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
 
       {myRooms.length > 0 && (
         <>
-          <div style={{ ...styles.title, fontSize: '11px', padding: '8px 20px 2px', color: 'var(--text-muted)' }}>Tus salas</div>
+          <div style={styles.sectionLabel}>Tus salas</div>
           {myRooms.map((r) => (
-            <div key={r.id} style={styles.roomItem(activeRoom?.id === r.id)} onClick={() => onSelect(r)}>
+            <div key={r.id} style={{...panelItemStyle, ...(activeRoom?.id === r.id ? {background: 'var(--surface-active)', color: 'var(--primary)'} : {}), borderLeft: activeRoom?.id === r.id ? '3px solid var(--accent)' : '3px solid transparent'}} onClick={() => onSelect(r)}>
               <div style={styles.roomIcon(r.hasPassword)}>
-                {r.hasPassword ? '🔒' : '🎲'}
+                {r.hasPassword ? '\u{1F512}' : '\u{1F3B2}'}
               </div>
               <div style={styles.roomInfo}>
                 <div style={styles.roomName}>
@@ -149,11 +142,11 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
 
       {otherRooms.length > 0 && (
         <>
-          <div style={{ ...styles.title, fontSize: '11px', padding: '8px 20px 2px', color: 'var(--text-muted)' }}>Disponibles</div>
+          <div style={styles.sectionLabel}>Disponibles</div>
           {otherRooms.map((r) => (
-            <div key={r.id} style={styles.roomItem(false)}>
+            <div key={r.id} style={{...panelItemStyle, borderLeft: '3px solid transparent'}}>
               <div style={styles.roomIcon(r.hasPassword)}>
-                {r.hasPassword ? '🔒' : '🎲'}
+                {r.hasPassword ? '\u{1F512}' : '\u{1F3B2}'}
               </div>
               <div style={styles.roomInfo}>
                 <div style={styles.roomName}>{r.name}</div>
@@ -162,10 +155,8 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
               <button style={styles.joinBtn} onClick={(e) => {
                 e.stopPropagation();
                 if (r.hasPassword) {
-                  const pwd = prompt('Esta sala está protegida con contraseña. Ingresa la contraseña:');
-                  if (pwd !== null) {
-                    onJoin(r.id, pwd);
-                  }
+                  setPendingRoom(r);
+                  setModalOpen(true);
                 } else {
                   onJoin(r.id);
                 }
@@ -174,6 +165,17 @@ export default function RoomsPanel({ rooms, activeRoom, onSelect, onCreate, onJo
           ))}
         </>
       )}
+
+      <PasswordModal
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setPendingRoom(null); }}
+        onConfirm={(pwd) => {
+          if (pendingRoom) onJoin(pendingRoom.id, pwd);
+          setModalOpen(false);
+          setPendingRoom(null);
+        }}
+        channelName={pendingRoom?.name || ''}
+      />
     </div>
   );
 }

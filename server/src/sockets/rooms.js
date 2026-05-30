@@ -1,4 +1,24 @@
+const crypto = require('crypto');
 const rooms = new Map();
+
+const MAX_DICE_COUNT = 100;
+const MAX_ROOM_NAME = 50;
+const MAX_MESSAGE_LENGTH = 1000;
+const MAX_PLAYERS = 20;
+
+function safeStr(v, maxLen) {
+  if (typeof v !== 'string') return '';
+  return v.slice(0, maxLen || 500);
+}
+
+function hashPassword(pw) {
+  if (!pw) return null;
+  return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
+function createId() {
+  return crypto.randomBytes(4).toString('hex');
+}
 
 function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
@@ -6,7 +26,7 @@ function rollDie(sides) {
 
 function rollDice(count, sides, explosive) {
   const results = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < Math.min(count, MAX_DICE_COUNT); i++) {
     let r = rollDie(sides);
     results.push(r);
     if (explosive && r === sides) {
@@ -40,10 +60,6 @@ function getRoomData(room) {
   };
 }
 
-function createId() {
-  return Math.random().toString(36).substring(2, 8);
-}
-
 function setupRooms(io) {
   io.on('connection', (socket) => {
 
@@ -73,12 +89,13 @@ function setupRooms(io) {
     socket.on('room:create', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.name !== 'string') return;
       const id = createId();
       const room = {
         id,
-        name: data.name || 'Sala sin nombre',
+        name: safeStr(data.name, MAX_ROOM_NAME) || 'Sala sin nombre',
         admin: user.username,
-        password: data.password || null,
+        password: hashPassword(data.password),
         players: [user.username],
         currentTurn: 0,
         currentDiceConfig: null,
@@ -95,10 +112,12 @@ function setupRooms(io) {
     socket.on('room:join', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return socket.emit('error', { message: 'La sala no existe' });
       if (room.players.includes(user.username)) return socket.emit('error', { message: 'Ya estas en la sala' });
-      if (room.password && room.password !== data.password) {
+      if (room.players.length >= MAX_PLAYERS) return socket.emit('error', { message: 'Sala llena' });
+      if (room.password && hashPassword(data.password) !== room.password) {
         return socket.emit('room:error', { message: 'Contraseña incorrecta' });
       }
       room.players.push(user.username);
@@ -111,6 +130,7 @@ function setupRooms(io) {
     socket.on('room:leave', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       const idx = room.players.indexOf(user.username);
@@ -131,8 +151,16 @@ function setupRooms(io) {
     socket.on('room:reorder', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || !Array.isArray(data.players) || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room || room.admin !== user.username) return;
+      if (data.players.length !== room.players.length) return;
+      const currentSet = new Set(room.players);
+      const newSet = new Set(data.players);
+      if (currentSet.size !== newSet.size) return;
+      for (const p of currentSet) {
+        if (!newSet.has(p)) return;
+      }
       room.players = data.players;
       io.to(data.roomId).emit('room:updated', getRoomData(room));
     });
@@ -140,6 +168,7 @@ function setupRooms(io) {
     socket.on('room:next-turn', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       if (room.players[room.currentTurn] !== user.username) return;
@@ -151,6 +180,7 @@ function setupRooms(io) {
     socket.on('room:kick', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string' || typeof data.username !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room || room.admin !== user.username) return;
       const idx = room.players.indexOf(data.username);
@@ -171,6 +201,7 @@ function setupRooms(io) {
     socket.on('room:invite', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string' || typeof data.username !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room || room.admin !== user.username) return;
       for (const [, s] of io.sockets.sockets) {
@@ -188,13 +219,14 @@ function setupRooms(io) {
     socket.on('room:message', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.content !== 'string' || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       if (!room.players.includes(user.username)) return;
       const msg = {
         roomId: data.roomId,
         from: user.username,
-        content: data.content.slice(0, 1000),
+        content: safeStr(data.content, MAX_MESSAGE_LENGTH),
         timestamp: Date.now()
       };
       room.messages.push(msg);
@@ -205,6 +237,7 @@ function setupRooms(io) {
     socket.on('dice:config', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       if (!room.players.includes(user.username)) return;
@@ -220,6 +253,7 @@ function setupRooms(io) {
     socket.on('dice:roll', (data) => {
       const user = socket.data.user;
       if (!user) return;
+      if (!data || typeof data.roomId !== 'string') return;
       const room = rooms.get(data.roomId);
       if (!room) return;
       if (!room.players.includes(user.username)) return;

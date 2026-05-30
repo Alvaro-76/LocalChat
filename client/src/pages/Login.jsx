@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { connectSocket } from '../services/socket';
 import Avatar from '../components/Avatar';
 import { hashColor } from '../services/avatar';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
+import { SERVER_URL } from '../services/config';
 
 export default function Login({ onLogin }) {
   const [mode, setMode] = useState('login');

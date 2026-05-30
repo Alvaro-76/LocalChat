@@ -1,9 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import Avatar from './Avatar';
+import { SERVER_URL } from '../services/config';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
-
-export default function MessageList({ messages, currentUser, isAdmin, onDelete, typingUsers }) {
+const MessageList = memo(function MessageList({ messages, currentUser, isAdmin, onDelete, typingUsers, loading, searchQuery }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -16,6 +15,17 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
   }
 
   const typingList = typingUsers ? Object.keys(typingUsers).filter((u) => typingUsers[u]) : [];
+
+  function highlightText(text) {
+    if (!searchQuery || !text) return text;
+    const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === searchQuery.toLowerCase()
+        ? <span key={i} style={styles.highlight}>{part}</span>
+        : part
+    );
+  }
 
   const styles = {
     container: {
@@ -96,8 +106,76 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
       width: '6px', height: '6px', borderRadius: '50%',
       background: 'var(--text-muted)',
       animation: `typingDot 1.4s ${delay}s infinite`
-    })
+    }),
+    skeleton: {
+      display: 'flex', flexDirection: 'column', gap: '12px',
+      padding: '20px 60px', flex: 1, overflowY: 'auto'
+    },
+    skeletonRow: (isOwn) => ({
+      display: 'flex',
+      flexDirection: isOwn ? 'row-reverse' : 'row',
+      alignItems: 'flex-end',
+      gap: '8px',
+      maxWidth: '68%',
+      alignSelf: isOwn ? 'flex-end' : 'flex-start'
+    }),
+    skeletonAvatar: {
+      width: '32px', height: '32px', borderRadius: '50%',
+      background: 'var(--border)', flexShrink: 0,
+      animation: 'pulse 1.5s ease-in-out infinite'
+    },
+    skeletonBubble: (isOwn, width) => ({
+      padding: '12px 14px', borderRadius: '18px',
+      borderBottomRightRadius: isOwn ? '4px' : '18px',
+      borderBottomLeftRadius: isOwn ? '18px' : '4px',
+      background: isOwn ? 'var(--bubble-own)' : 'var(--bubble-other)',
+      border: isOwn ? '1px solid var(--bubble-own-border)' : '1px solid var(--bubble-other-border)',
+      display: 'flex', flexDirection: 'column', gap: '6px',
+      minWidth: '120px'
+    }),
+    skeletonLine: (isOwn, width) => ({
+      height: '12px', borderRadius: '6px',
+      background: isOwn ? 'var(--bubble-own-border)' : 'var(--border)',
+      width: width || '80%',
+      animation: 'pulse 1.5s ease-in-out infinite'
+    }),
+    highlight: {
+      background: '#FFF3CD', color: '#856404', borderRadius: '3px', padding: '0 2px'
+    }
   };
+
+  if (loading && messages.length === 0) {
+    const skeletonItems = [
+      { isOwn: false, lines: ['45%', '70%'] },
+      { isOwn: true, lines: ['55%', '30%'] },
+      { isOwn: false, lines: ['35%', '65%', '50%'] },
+      { isOwn: false, lines: ['60%'] },
+      { isOwn: true, lines: ['40%', '75%'] },
+    ];
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg)' }}>
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+        `}</style>
+        <div style={styles.skeleton}>
+          {skeletonItems.map((item, i) => (
+            <div key={i} style={styles.skeletonRow(item.isOwn)}>
+              <div style={styles.skeletonAvatar} />
+              <div style={styles.skeletonBubble(item.isOwn)}>
+                <div style={styles.skeletonLine(item.isOwn, item.isOwn ? '30%' : '25%')} />
+                {item.lines.map((w, j) => (
+                  <div key={j} style={{...styles.skeletonLine(item.isOwn, w), height: '10px'}} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (messages.length === 0) {
     return (
@@ -213,7 +291,7 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
                       <button style={styles.deleteBtn} onClick={() => onDelete(msg.id)}>✕</button>
                     )}
                   </div>
-                  <div style={styles.content}>{msg.content}</div>
+                  <div style={styles.content}>{highlightText(msg.content)}</div>
                   <div style={styles.time}>
                     {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
                   </div>
@@ -238,4 +316,6 @@ export default function MessageList({ messages, currentUser, isAdmin, onDelete, 
       )}
     </div>
   );
-}
+});
+
+export default MessageList;

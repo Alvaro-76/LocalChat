@@ -13,7 +13,8 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, AVATAR_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${req.user.username}-${Date.now()}${ext}`);
+    const safe = crypto.randomBytes(8).toString('hex');
+    cb(null, `${safe}-${Date.now()}${ext}`);
   }
 });
 

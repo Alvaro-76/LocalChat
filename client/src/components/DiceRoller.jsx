@@ -275,12 +275,6 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
 
   return (
     <div style={styles.container}>
-      <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={styles.title}>🎲 Mesa de dados</div>
         <button style={styles.savageBtn} onClick={() => { if (!disabled) setLocalCounts({ d4: 0, d6: 1, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0 }); }}>

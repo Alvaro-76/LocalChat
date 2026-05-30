@@ -1,5 +1,6 @@
+const crypto = require('crypto');
 const db = require('../db/database');
-const { verifyToken, JWT_SECRET } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
 
 const onlineUsers = new Map();
 const SERVER_URL = process.env.SERVER_URL || '';
@@ -7,22 +8,36 @@ const SERVER_URL = process.env.SERVER_URL || '';
 const groups = new Map();
 let nextGroupId = 1;
 
+function safeStr(v, maxLen) {
+  if (typeof v !== 'string') return '';
+  return v.slice(0, maxLen || 500);
+}
+
+function hashPassword(pw) {
+  if (!pw) return null;
+  return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
 function setupSocket(io) {
   io.on('connection', (socket) => {
     let currentUser = null;
 
     socket.on('user:join', (data) => {
       const { username, token } = data;
-      let user = { username, role: 'anonymous', id: null };
-      socket.data.user = user;
+      const safeName = safeStr(username, 30);
+      let user = { username: safeName, role: 'anonymous', id: null };
 
       if (token) {
         try {
           const decoded = verifyToken(token);
           user = decoded;
+          socket.data.user = user;
         } catch {
           socket.emit('error', { message: 'Token inválido, modo invitado' });
+          socket.data.user = user;
         }
+      } else {
+        socket.data.user = user;
       }
 
       const registeredUser = db.getUser(user.username);
@@ -42,10 +57,11 @@ function setupSocket(io) {
 
     socket.on('message:global', (data) => {
       if (!currentUser) return;
+      if (!data || typeof data.content !== 'string') return;
 
       const msg = {
         from: currentUser.username,
-        content: data.content.slice(0, 500),
+        content: safeStr(data.content, 500),
         timestamp: new Date().toISOString()
       };
 
@@ -60,9 +76,10 @@ function setupSocket(io) {
 
     socket.on('message:private', (data) => {
       if (!currentUser) return;
+      if (!data || typeof data.content !== 'string' || typeof data.to !== 'string') return;
 
       const { to, content } = data;
-      const sanitized = content.slice(0, 500);
+      const sanitized = safeStr(content, 500);
       const isPersistent = currentUser.role !== 'anonymous';
 
       let saved = null;
@@ -94,12 +111,13 @@ function setupSocket(io) {
 
     socket.on('file:global', (data) => {
       if (!currentUser) return;
+      if (!data || typeof data.fileId !== 'string' || typeof data.fileName !== 'string') return;
       const msg = {
         type: 'file',
-        fileId: data.fileId,
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        mimeType: data.mimeType,
+        fileId: safeStr(data.fileId, 32),
+        fileName: safeStr(data.fileName, 200).replace(/[<>"']/g, ''),
+        fileSize: typeof data.fileSize === 'number' ? Math.min(data.fileSize, 50*1024*1024) : 0,
+        mimeType: safeStr(data.mimeType, 100),
         from: currentUser.username,
         timestamp: new Date().toISOString()
       };
@@ -113,14 +131,15 @@ function setupSocket(io) {
 
     socket.on('file:private', (data) => {
       if (!currentUser) return;
+      if (!data || typeof data.fileId !== 'string' || typeof data.fileName !== 'string') return;
       const msg = {
         type: 'file',
-        fileId: data.fileId,
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        mimeType: data.mimeType,
+        fileId: safeStr(data.fileId, 32),
+        fileName: safeStr(data.fileName, 200).replace(/[<>"']/g, ''),
+        fileSize: typeof data.fileSize === 'number' ? Math.min(data.fileSize, 50*1024*1024) : 0,
+        mimeType: safeStr(data.mimeType, 100),
         from: currentUser.username,
-        to: data.to,
+        to: safeStr(data.to, 30),
         timestamp: new Date().toISOString()
       };
       const isPersistent = currentUser.role !== 'anonymous';
@@ -169,7 +188,30 @@ function setupSocket(io) {
 
     socket.on('admin:get:users', () => {
       if (!currentUser || currentUser.role !== 'admin') return;
-      socket.emit('admin:users:list', db.getAllUsers());
+
+      const registeredUsers = db.getAllUsers().map(u => ({ ...u, isRegistered: true }));
+
+      const anonymousUsers = Array.from(onlineUsers.values())
+        .filter(u => u.role === 'anonymous')
+        .map(u => ({
+          id: u.id,
+          username: u.username,
+          role: 'anonymous',
+          avatar: u.avatar,
+          created_at: null,
+          isRegistered: false
+        }));
+
+      const seen = new Set(registeredUsers.map(u => u.username));
+      const allUsers = [...registeredUsers];
+      for (const anon of anonymousUsers) {
+        if (!seen.has(anon.username)) {
+          seen.add(anon.username);
+          allUsers.push(anon);
+        }
+      }
+
+      socket.emit('admin:users:list', allUsers);
     });
 
     socket.on('typing:start', (data) => {
@@ -216,14 +258,15 @@ function setupSocket(io) {
 
     socket.on('group:create', (data) => {
       if (!currentUser) return;
-      const { name, password } = data;
-      if (!name || !name.trim()) return;
+      if (!data || typeof data.name !== 'string') return;
+      const name = data.name.trim().slice(0, 50);
+      if (!name) return;
       const id = nextGroupId++;
       const group = {
         id,
-        name: name.trim(),
+        name,
         admin: currentUser.username,
-        password: password || null,
+        password: hashPassword(data.password),
         members: [currentUser.username],
         messages: []
       };
@@ -261,10 +304,11 @@ function setupSocket(io) {
     socket.on('group:join', (data) => {
       if (!currentUser) return;
       const { groupId, password } = data;
+      if (typeof groupId !== 'number') return;
       const group = groups.get(groupId);
       if (!group) return;
       if (!group.members.includes(currentUser.username)) {
-        if (group.password && group.password !== password) {
+        if (group.password && hashPassword(password) !== group.password) {
           return socket.emit('group:error', { message: 'Contraseña incorrecta' });
         }
         group.members.push(currentUser.username);
@@ -319,15 +363,14 @@ function setupSocket(io) {
 
     socket.on('group:message', (data) => {
       if (!currentUser) return;
+      if (!data || typeof data.content !== 'string') return;
       const { groupId, content } = data;
       const group = groups.get(groupId);
-      if (!group || !group.members.includes(currentUser.username)) return;
-
-      const sanitized = content.slice(0, 500);
+      if (!group) return;
+      if (!group.members.includes(currentUser.username)) return;
       const msg = {
         from: currentUser.username,
-        content: sanitized,
-        groupId,
+        content: safeStr(content, 500),
         timestamp: new Date().toISOString()
       };
 

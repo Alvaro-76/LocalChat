@@ -4,7 +4,7 @@ import Avatar from './Avatar';
 
 export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder, onNextTurn, onKick, onInvite, onMessage, onConfigChange, messages }) {
   const isAdmin = room.admin === currentUser;
-  const currentPlayer = room.players[room.currentTurn];
+  const currentPlayer = room.players?.[room.currentTurn ?? 0] || room.players?.[0];
   const isMyTurn = currentPlayer === currentUser;
   const turnLastRoll = room.lastRolls?.[currentPlayer];
   const canRollDice = isMyTurn;

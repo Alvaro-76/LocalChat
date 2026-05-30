@@ -1,13 +1,15 @@
 import React, { useState, useRef } from 'react';
 import Avatar from './Avatar';
 import { toggleTheme, getTheme } from '../services/theme';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
+import { SERVER_URL } from '../services/config';
+import { ConfirmModal } from './Modal';
 
 export default function SettingsPanel({ user, settings, onUpdateSettings, onClose, onAvatarChange }) {
   const [avatarColor, setAvatarColor] = useState(user.avatar?.color || '#4F6CF7');
   const [themeMode, setThemeMode] = useState(getTheme());
   const fileRef = useRef(null);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
 
   function handleToggleTheme() {
     const next = toggleTheme();
@@ -85,7 +87,8 @@ export default function SettingsPanel({ user, settings, onUpdateSettings, onClos
 
     const token = user.token;
     if (!token) {
-      alert('Solo usuarios registrados pueden subir avatar');
+      setAlertMsg('Solo usuarios registrados pueden subir avatar');
+      setAlertOpen(true);
       return;
     }
 
@@ -97,18 +100,17 @@ export default function SettingsPanel({ user, settings, onUpdateSettings, onClos
       });
       if (!res.ok) throw new Error('Error al subir');
       const data = await res.json();
-      user.avatar = data.avatar;
       if (onAvatarChange) onAvatarChange(data.avatar);
     } catch (err) {
-      alert('Error: ' + err.message);
+      setAlertMsg('Error: ' + err.message);
+      setAlertOpen(true);
     }
   }
 
   function handleColorSelect(color) {
     setAvatarColor(color);
-    if (user) {
-      user.avatar = { type: 'color', color };
-      if (onAvatarChange) onAvatarChange({ type: 'color', color });
+    if (onAvatarChange && user) {
+      onAvatarChange({ type: 'color', color });
     }
   }
 
@@ -191,6 +193,15 @@ export default function SettingsPanel({ user, settings, onUpdateSettings, onClos
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={alertOpen}
+        onClose={() => setAlertOpen(false)}
+        onConfirm={() => setAlertOpen(false)}
+        title="Aviso"
+        message={alertMsg}
+        confirmText="Entendido"
+      />
     </div>
   );
 }
