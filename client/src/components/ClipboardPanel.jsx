@@ -1,6 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { getSocket } from '../services/socket';
 
-export default function ClipboardPanel({ items, onSend, onCopy, currentUser }) {
+export default function ClipboardPanel({ items, onCopy, currentUser }) {
+  const [text, setText] = useState('');
+  const socket = getSocket();
+
+  function handleShare() {
+    const content = text.trim();
+    if (!content || !socket) return;
+    socket.emit('clipboard:share', { content });
+    setText('');
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') handleShare();
+  }
+
   const styles = {
     section: {
       borderTop: '1px solid var(--border)',
@@ -10,11 +25,18 @@ export default function ClipboardPanel({ items, onSend, onCopy, currentUser }) {
       fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
       textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px'
     },
-    shareBtn: {
-      width: '100%', padding: '8px', border: '2px solid var(--primary)',
-      borderRadius: '8px', background: 'transparent',
-      color: 'var(--primary)', cursor: 'pointer', fontSize: '12px',
-      fontWeight: 600, marginBottom: '10px'
+    inputRow: {
+      display: 'flex', gap: '6px', marginBottom: '10px'
+    },
+    input: {
+      flex: 1, padding: '8px 10px', border: '2px solid var(--border)',
+      borderRadius: '8px', fontSize: '12px', background: 'var(--input-bg)',
+      color: 'var(--text)', outline: 'none'
+    },
+    sendBtn: {
+      padding: '8px 14px', border: 'none', borderRadius: '8px',
+      background: 'var(--primary)', color: '#fff', fontSize: '12px',
+      fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap'
     },
     empty: {
       color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '12px'
@@ -39,9 +61,16 @@ export default function ClipboardPanel({ items, onSend, onCopy, currentUser }) {
   return (
     <div style={styles.section}>
       <div style={styles.title}>Portapapeles compartido</div>
-      <button style={styles.shareBtn} onClick={onSend}>
-        Compartir mi portapapeles
-      </button>
+      <div style={styles.inputRow}>
+        <input
+          style={styles.input}
+          placeholder="Pega aquí (Ctrl+V) o escribe..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <button style={styles.sendBtn} onClick={handleShare}>Compartir</button>
+      </div>
       {items.length === 0 ? (
         <div style={styles.empty}>Nadie ha compartido nada aún</div>
       ) : (

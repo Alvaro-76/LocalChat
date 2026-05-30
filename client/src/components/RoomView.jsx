@@ -1,15 +1,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import DiceRoller from './DiceRoller';
+import InitiativePanel from './InitiativePanel';
 import Avatar from './Avatar';
+import { getSocket } from '../services/socket';
+
+function isNPC(username) {
+  return username && username.startsWith('NPC:');
+}
 
 export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder, onNextTurn, onKick, onInvite, onMessage, onConfigChange, messages }) {
   const isAdmin = room.admin === currentUser;
   const currentPlayer = room.players?.[room.currentTurn ?? 0] || room.players?.[0];
   const isMyTurn = currentPlayer === currentUser;
+  const isNPCTurn = currentPlayer && isNPC(currentPlayer);
   const turnLastRoll = room.lastRolls?.[currentPlayer];
-  const canRollDice = isMyTurn;
+  const canRollDice = isMyTurn || (isAdmin && isNPCTurn);
   const [diceColor, setDiceColor] = useState('#4F6CF7');
   const [inviteUser, setInviteUser] = useState('');
+  const [npcName, setNpcName] = useState('');
   const [chatText, setChatText] = useState('');
   const [dragIdx, setDragIdx] = useState(null);
   const chatRef = useRef(null);
@@ -52,6 +60,39 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
       setInviteUser('');
     }
   }
+
+  function handleAddNpc(e) {
+    e.preventDefault();
+    if (!npcName.trim()) return;
+    const socket = getSocket();
+    if (socket) {
+      socket.emit('room:add-npc', { roomId: room.id, name: npcName.trim() });
+      setNpcName('');
+    }
+  }
+
+  function handleRemoveNpc(username) {
+    const socket = getSocket();
+    if (socket) {
+      socket.emit('room:remove-npc', { roomId: room.id, username });
+    }
+  }
+
+  const handleIniciativaSW = useCallback(() => {
+    const socket = getSocket();
+    if (!socket || !room) return;
+    const opts = room.initiative?.playerOptions?.[currentUser] || {};
+    const newIniciativa = !opts.iniciativa;
+    socket.emit('initiative:config', {
+      roomId: room.id,
+      iniciativa: newIniciativa,
+      rapido: newIniciativa ? (opts.rapido || false) : false,
+      temple: newIniciativa ? (opts.temple || false) : false,
+      templeMejorado: newIniciativa ? (opts.templeMejorado || false) : false,
+      dubitativo: newIniciativa ? (opts.dubitativo || false) : false,
+      terrenoPredilecto: newIniciativa ? (opts.terrenoPredilecto || false) : false
+    });
+  }, [room, currentUser]);
 
   function handleChatSubmit(e) {
     e.preventDefault();
@@ -222,7 +263,11 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
             disabled={!canRollDice}
             currentDiceConfig={room.currentDiceConfig}
             onConfigChange={canRollDice ? onConfigChange : undefined}
+            onIniciativaSW={handleIniciativaSW}
+            iniciativaActive={room.initiative?.playerOptions?.[currentUser]?.iniciativa || false}
           />
+
+          <InitiativePanel room={room} currentUser={currentUser} isAdmin={isAdmin} />
 
           {room.lastRolls && Object.keys(room.lastRolls).length > 0 && (
             <div style={styles.card}>
@@ -290,7 +335,7 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
               return (
                 <div
                   key={username}
-                  style={styles.playerItem(isCurrent, isMe, dragIdx === idx)}
+                  style={styles.playerItem(isCurrent, isMe || isNPC(username), dragIdx === idx)}
                   draggable={isAdmin}
                   onDragStart={() => handleDragStart(idx)}
                   onDragOver={(e) => handleDragOver(e, idx)}
@@ -299,14 +344,15 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
                   <Avatar user={{ username }} size={28} />
                   <div style={styles.playerInfo}>
                     <div style={styles.playerName}>
-                      {username}
+                      {username.replace(/^NPC:/, '')}
                       {room.admin === username && <span style={styles.adminBadge}>Admin</span>}
+                      {isNPC(username) && <span style={{ ...styles.adminBadge, background: '#7b1fa2' }}>NPC</span>}
                     </div>
                     <div style={styles.playerStatus(isCurrent)}>
                       {isCurrent ? '🎯 Turno actual' : isMe ? 'Tú' : ''}
                     </div>
                   </div>
-                  {isAdmin && !isMe && (
+                  {isAdmin && !isMe && !isNPC(username) && (
                     <div style={{ display: 'flex', gap: '2px' }}>
                       {idx > 0 && (
                         <button style={styles.moveBtn} onClick={() => handleMovePlayer(idx, -1)} title="Subir">↑</button>
@@ -317,13 +363,16 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
                       <button style={styles.kickBtn} onClick={() => onKick(username)} title="Expulsar">✕</button>
                     </div>
                   )}
+                  {isAdmin && isNPC(username) && (
+                    <button style={styles.kickBtn} onClick={() => handleRemoveNpc(username)} title="Eliminar NPC">✕</button>
+                  )}
                 </div>
               );
             })}
           </div>
 
           <div style={styles.turnActions}>
-            {isMyTurn && (
+            {(isMyTurn || (isAdmin && isNPCTurn)) && (
               <button style={styles.nextTurnBtn} onClick={onNextTurn}>
                 Pasar turno →
               </button>
@@ -337,6 +386,17 @@ export default function RoomView({ room, currentUser, onRoll, onLeave, onReorder
                   onChange={(e) => setInviteUser(e.target.value)}
                 />
                 <button style={styles.inviteBtn} type="submit">Invitar</button>
+              </form>
+            )}
+            {isAdmin && (
+              <form style={{ ...styles.inviteForm, marginTop: '6px' }} onSubmit={handleAddNpc}>
+                <input
+                  style={styles.inviteInput}
+                  placeholder="Nombre NPC..."
+                  value={npcName}
+                  onChange={(e) => setNpcName(e.target.value)}
+                />
+                <button style={{ ...styles.inviteBtn, background: '#7b1fa2' }} type="submit">+NPC</button>
               </form>
             )}
           </div>

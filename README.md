@@ -41,6 +41,9 @@ Canales de chat grupales separados del chat global. El creador es admin y puede 
 ### Salas de dados 🎲
 Salas multijugador con tirada de dados (D20, D12, D10, D8, D6, D4, D100), chat integrado, turnos, reordenamiento de jugadores y sistema de invitación. Soporta contraseña opcional. Límite de 20 jugadores por sala.
 
+### Sistema de iniciativa ⚔️
+Integrado en las salas de dados. Usa una baraja de póker (52 cartas + 2 comodines) para determinar el orden de iniciativa. Cada jugador puede configurar opciones (Rápido, Temple, Temple Mejorado, Dubitativo, Terreno Predilecto) con exclusiones mutuas. Soporta NPCs/monstruos (prefijo `NPC:`) manejados por el admin. Al repartir, los jugadores con bonos pueden elegir carta. Al terminar la ronda, el turno avanza en round-robin hasta la siguiente ronda de iniciativa. Si sale un comodín, la baraja se baraja de nuevo.
+
 ### Indicadores de no leídos
 - **Badge rojo** en el canal General al recibir mensajes globales.
 - **Badge rojo** junto a un usuario cuando recibes un mensaje privado.
@@ -79,9 +82,6 @@ Visible solo para el admin (el primer usuario registrado obtiene el rol automát
 
 ### Copia de seguridad de mensajes
 Los usuarios registrados tienen persistencia de mensajes globales, privados y de grupo. Los invitados pierden el historial al reconectar.
-
-### Portapapeles compartido 📋
-Comparte el contenido de tu portapapeles con todos los usuarios de la red con un solo clic.
 
 ### Búsqueda de mensajes 🔍
 Campo de búsqueda en el encabezado del chat para filtrar mensajes por contenido en tiempo real, con botón de limpieza.
@@ -136,7 +136,7 @@ client/
       RoomView.jsx         # Vista de sala de dados
       DiceRoller.jsx       # Tirador de dados
       SettingsPanel.jsx    # Panel de configuración
-      ClipboardPanel.jsx   # Portapapeles compartido
+      InitiativePanel.jsx  # Sistema de iniciativa
       EmojiPicker.jsx      # Selector de emojis
       ErrorBoundary.jsx    # Captura de errores de renderizado
       panelStyles.js       # Estilos compartidos entre paneles

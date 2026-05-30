@@ -14,8 +14,11 @@ const avatarRoutes = require('./routes/avatar');
 const setupSocket = require('./sockets/chat');
 const { setupRooms } = require('./sockets/rooms');
 
+const os = require('os');
 const app = express();
 const server = http.createServer(app);
+
+const PORT = process.env.PORT || 3000;
 
 let LOCAL_IP = '127.0.0.1';
 try {
@@ -26,9 +29,18 @@ try {
   }
 } catch {}
 
-const allowedOrigins = [undefined, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+const allowedOrigins = [undefined, 'http://localhost:3000', `http://localhost:${PORT}`, 'http://127.0.0.1:3000', `http://127.0.0.1:${PORT}`];
 if (LOCAL_IP !== '127.0.0.1') {
-  allowedOrigins.push(`http://${LOCAL_IP}:3000`);
+  allowedOrigins.push(`http://${LOCAL_IP}:${PORT}`);
+}
+
+const interfaces = os.networkInterfaces();
+for (const name of Object.keys(interfaces)) {
+  for (const iface of interfaces[name]) {
+    if (iface.family === 'IPv4' && iface.address !== '127.0.0.1') {
+      allowedOrigins.push(`http://${iface.address}:${PORT}`);
+    }
+  }
 }
 
 const corsOptions = {
@@ -89,7 +101,6 @@ app.get('/', (req, res) => {
 setupSocket(io);
 setupRooms(io);
 
-const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n========================================`);
   console.log(`  Servidor: http://${LOCAL_IP}:${PORT}`);

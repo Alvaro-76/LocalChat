@@ -14,9 +14,9 @@ function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
 }
 
-export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, disabled, currentDiceConfig, onConfigChange }) {
+export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, disabled, currentDiceConfig, onConfigChange, onIniciativaSW, iniciativaActive }) {
   const [localCounts, setLocalCounts] = useState({ d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0 });
-  const [explosive, setExplosive] = useState(false);
+  const [localExplosive, setLocalExplosive] = useState(false);
   const [diceColor, setDiceColor] = useState(color || '#4F6CF7');
 
   const [animPhase, setAnimPhase] = useState('idle');
@@ -28,7 +28,8 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
   const cancelledRef = useRef(false);
   const cleanupRef = useRef(null);
 
-  const counts = disabled ? (currentDiceConfig || { d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0 }) : localCounts;
+  const counts = disabled ? (currentDiceConfig?.counts || { d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0 }) : localCounts;
+  const explosive = disabled ? (currentDiceConfig?.explosive || false) : localExplosive;
 
   const configTimerRef = useRef(null);
 
@@ -36,10 +37,10 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
     if (disabled || !onConfigChange) return;
     if (configTimerRef.current) clearTimeout(configTimerRef.current);
     configTimerRef.current = setTimeout(() => {
-      onConfigChange(localCounts);
+      onConfigChange(localCounts, localExplosive);
     }, 80);
     return () => { if (configTimerRef.current) clearTimeout(configTimerRef.current); };
-  }, [localCounts, disabled, onConfigChange]);
+  }, [localCounts, localExplosive, disabled, onConfigChange]);
 
   function changeCount(key, delta) {
     if (disabled) return;
@@ -208,10 +209,11 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
       background: disabled ? 'var(--text-muted)' : diceColor, color: '#fff', fontSize: '15px', fontWeight: 600,
       cursor: animPhase === 'dice' || animPhase === 'total' || disabled ? 'not-allowed' : 'pointer', flex: 1, opacity: animPhase === 'dice' || animPhase === 'total' || disabled ? 0.6 : 1
     },
-    clearBtn: {
-      padding: '10px 20px', border: '1px solid var(--border)', borderRadius: '8px',
-      background: 'transparent', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer'
-    },
+    clearBtn: (disabled) => ({
+      padding: '10px 20px', border: `1px solid ${disabled ? 'var(--text-muted)' : 'var(--border)'}`, borderRadius: '8px',
+      background: 'transparent', color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+      fontSize: '14px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1
+    }),
     resultBox: {
       background: 'var(--surface-hover)', borderRadius: '8px', padding: '12px 16px',
       border: `1px solid ${diceColor}40`, minHeight: '60px',
@@ -277,8 +279,13 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
     <div style={styles.container}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={styles.title}>🎲 Mesa de dados</div>
-        <button style={styles.savageBtn} onClick={() => { if (!disabled) setLocalCounts({ d4: 0, d6: 1, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0 }); }}>
-          Iniciativa SW
+        <button style={{
+          ...styles.savageBtn,
+          background: iniciativaActive ? 'var(--primary)' : 'transparent',
+          color: iniciativaActive ? '#fff' : (disabled ? 'var(--text-muted)' : 'var(--primary)'),
+          borderColor: iniciativaActive ? 'var(--primary)' : (disabled ? 'var(--text-muted)' : 'var(--primary)')
+        }} onClick={() => { if (!disabled) onIniciativaSW?.(); }}>
+          {iniciativaActive ? '★ Iniciativa' : 'Iniciativa'}
         </button>
       </div>
 
@@ -300,12 +307,12 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
 
       <div style={styles.optionsRow}>
         <label style={styles.toggleLabel}>
-          <input type="checkbox" style={styles.toggleInput} checked={explosive} onChange={(e) => setExplosive(e.target.checked)} />
+          <input type="checkbox" style={styles.toggleInput} checked={explosive} onChange={(e) => setLocalExplosive(e.target.checked)} disabled={disabled} />
           Modo explosivo
         </label>
         <label style={styles.colorLabel}>
           Color:
-          <input type="color" style={styles.colorInput} value={diceColor} onChange={handleColorChange} />
+          <input type="color" style={styles.colorInput} value={diceColor} onChange={handleColorChange} disabled={disabled} />
         </label>
       </div>
 
@@ -313,7 +320,7 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
         <button style={styles.rollBtn} onClick={handleRoll}>
           {disabled ? '⏳ Espera tu turno' : animPhase === 'dice' ? '🎲 Tirando...' : animPhase === 'total' ? '🧮 Sumando...' : '🎲 Tirar'}
         </button>
-        <button style={styles.clearBtn} onClick={handleClear}>Limpiar</button>
+        <button style={styles.clearBtn(disabled || animPhase !== 'idle')} onClick={handleClear}>Limpiar</button>
       </div>
 
       <div style={styles.resultBox}>
@@ -369,7 +376,12 @@ export default function DiceRoller({ onRoll, lastRoll, color, onColorChange, dis
 
         {(animPhase !== 'idle' || (animPhase === 'idle' && lastRoll)) && (
           <div style={styles.totalContainer}>
-            <div style={styles.total}>Total: {displayTotal}</div>
+            <div style={styles.total}>
+              Total: {displayTotal}
+              {(animPhase === 'done' || animPhase === 'idle') && lastRoll?.maxValue > 0 && (
+                <> &nbsp;|&nbsp; Mayor: {lastRoll.maxValue}</>
+              )}
+            </div>
           </div>
         )}
 

@@ -8,7 +8,7 @@ import RoomView from '../components/RoomView';
 import ChannelsPanel from '../components/ChannelsPanel';
 import SettingsPanel from '../components/SettingsPanel';
 import Avatar from '../components/Avatar';
-import ClipboardPanel from '../components/ClipboardPanel';
+
 import { SERVER_URL } from '../services/config';
 import { InviteModal, ConfirmModal } from '../components/Modal';
 import { setupSocketEvents } from '../services/socketEvents';
@@ -353,10 +353,10 @@ export default function Chat({ user: initialUser, onLogout }) {
     if (socket) socket.emit('dice:roll', { roomId: activeRoom.id, ...config });
   }, [activeRoom]);
 
-  const updateDiceConfig = useCallback((counts) => {
+  const updateDiceConfig = useCallback((counts, explosive) => {
     if (!activeRoom) return;
     const socket = getSocket();
-    if (socket) socket.emit('dice:config', { roomId: activeRoom.id, counts });
+    if (socket) socket.emit('dice:config', { roomId: activeRoom.id, counts, explosive });
   }, [activeRoom]);
 
   const createGroup = useCallback((name, password) => {
@@ -615,33 +615,7 @@ export default function Chat({ user: initialUser, onLogout }) {
                 currentUser={user.username}
               />
             </div>
-            <div style={{borderBottom: '1px solid var(--border)'}}>
-              <div
-                style={{
-                  padding: '12px 16px', fontSize: '12px', fontWeight: 600,
-                  color: 'var(--text-secondary)', textTransform: 'uppercase',
-                  letterSpacing: '0.8px', cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', gap: '6px', userSelect: 'none'
-                }}
-                onClick={() => setClipboardExpanded(!clipboardExpanded)}
-              >
-                Portapapeles
-                {clipboardItems.length > 0 && (
-                  <span style={{fontSize:'10px',background:'var(--badge-bg)',color:'var(--badge-text)',padding:'1px 6px',borderRadius:'8px',fontWeight:600}}>
-                    {clipboardItems.length}
-                  </span>
-                )}
-                <span style={{marginLeft:'auto',fontSize:'10px',color:'var(--text-muted)'}}>{clipboardExpanded ? '▼' : '▶'}</span>
-              </div>
-              {clipboardExpanded && (
-                <ClipboardPanel
-                  items={clipboardItems}
-                  onSend={shareClipboard}
-                  onCopy={sendToClipboard}
-                  currentUser={user.username}
-                />
-              )}
-            </div>
+
           </div>
         </div>
       </div>

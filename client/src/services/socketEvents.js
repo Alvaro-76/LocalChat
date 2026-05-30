@@ -162,7 +162,7 @@ export function setupSocketEvents(ops) {
   socket.on('dice:config-update', (data) => {
     ops.setActiveRoom((prev) => {
       if (!prev || prev.id !== data.roomId) return prev;
-      return { ...prev, currentDiceConfig: data.counts };
+      return { ...prev, currentDiceConfig: { counts: data.counts, explosive: data.explosive } };
     });
   });
 
