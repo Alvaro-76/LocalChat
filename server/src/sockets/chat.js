@@ -51,7 +51,11 @@ function setupSocket(io) {
       onlineUsers.set(socket.id, currentUser);
       io.emit('users:update', Array.from(onlineUsers.values()));
       socket.emit('user:info', { ...currentUser });
-      socket.emit('messages:global', db.getGlobalMessages());
+      if (user.role === 'anonymous') {
+        socket.emit('messages:global', []);
+      } else {
+        socket.emit('messages:global', db.getGlobalMessages());
+      }
       socket.emit('groups:list', getGroupsForUser(user.username));
     });
 
