@@ -15,7 +15,15 @@ export function setupSocketEvents(ops) {
 
   ops.setConnected(socket.connected);
 
-  socket.on('connect', () => ops.setConnected(true));
+  socket.on('connect', () => {
+    ops.setConnected(true);
+    const u = ops.userRef.current;
+    if (u && u.token) {
+      socket.emit('user:join', { username: u.username, token: u.token });
+    } else if (u) {
+      socket.emit('user:join', { username: u.username });
+    }
+  });
   socket.on('disconnect', () => ops.setConnected(false));
   socket.on('user:info', (info) => {
     if (info.avatar) {
