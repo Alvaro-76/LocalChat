@@ -5,6 +5,48 @@ const { generateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+/**
+ * @openapi
+ * /auth/register:
+ *   post:
+ *     tags: [Autenticación]
+ *     summary: Registrar un nuevo usuario
+ *     description: El primer usuario registrado obtiene rol "admin". Los siguientes obtienen rol "user".
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterRequest'
+ *           example:
+ *             username: usuario1
+ *             password: miPassword123
+ *     responses:
+ *       201:
+ *         description: Usuario registrado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Datos inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: El usuario ya existe
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -37,6 +79,48 @@ router.post('/register', async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /auth/login:
+ *   post:
+ *     tags: [Autenticación]
+ *     summary: Iniciar sesión
+ *     description: Autentica un usuario existente y devuelve un token JWT.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *           example:
+ *             username: usuario1
+ *             password: miPassword123
+ *     responses:
+ *       200:
+ *         description: Inicio de sesión exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Datos incompletos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Credenciales inválidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {

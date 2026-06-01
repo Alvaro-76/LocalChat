@@ -35,6 +35,46 @@ function sanitizeParam(val) {
 
 const router = express.Router();
 
+/**
+ * @openapi
+ * /api/files/upload:
+ *   post:
+ *     tags: [Archivos]
+ *     summary: Subir archivo
+ *     description: Sube un archivo adjunto. Máx 50 MB. Tipos permitidos: imágenes, documentos, audio, video.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo a subir
+ *     responses:
+ *       200:
+ *         description: Archivo subido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FileUploadResponse'
+ *       400:
+ *         description: No se envió ningún archivo o tipo no permitido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Token requerido o inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se envio ningun archivo' });
 
@@ -49,6 +89,42 @@ router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
   res.json(fileData);
 });
 
+/**
+ * @openapi
+ * /api/files/{id}/{filename}:
+ *   get:
+ *     tags: [Archivos]
+ *     summary: Descargar/ver archivo
+ *     description: Obtiene un archivo subido para visualizarlo (inline).
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del archivo (sin extensión)
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Nombre del archivo con extensión
+ *     responses:
+ *       200:
+ *         description: Contenido del archivo
+ *       400:
+ *         description: Parámetros inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Archivo no encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/:id/:filename', (req, res) => {
   const id = sanitizeParam(req.params.id);
   const filename = sanitizeParam(req.params.filename);
@@ -58,6 +134,42 @@ router.get('/:id/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
+/**
+ * @openapi
+ * /api/files/{id}/{filename}/download:
+ *   get:
+ *     tags: [Archivos]
+ *     summary: Forzar descarga de archivo
+ *     description: Obtiene un archivo como attachment (descarga forzada).
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del archivo
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Nombre del archivo con extensión
+ *     responses:
+ *       200:
+ *         description: Archivo descargado como attachment
+ *       400:
+ *         description: Parámetros inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Archivo no encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/:id/:filename/download', (req, res) => {
   const id = sanitizeParam(req.params.id);
   const filename = sanitizeParam(req.params.filename);

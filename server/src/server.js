@@ -13,6 +13,8 @@ const fileRoutes = require('./routes/files');
 const avatarRoutes = require('./routes/avatar');
 const setupSocket = require('./sockets/chat');
 const { setupRooms } = require('./sockets/rooms');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 
 const os = require('os');
 const app = express();
@@ -57,6 +59,9 @@ const io = new Server(server, {
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -103,9 +108,10 @@ setupRooms(io);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n========================================`);
-  console.log(`  Servidor: http://${LOCAL_IP}:${PORT}`);
-  console.log(`  App:      http://${LOCAL_IP}:${PORT}/app`);
-  console.log(`  Chat:     ws://${LOCAL_IP}:${PORT} (Socket.IO)`);
+  console.log(`  Servidor:     http://${LOCAL_IP}:${PORT}`);
+  console.log(`  App:          http://${LOCAL_IP}:${PORT}/app`);
+  console.log(`  Chat:         ws://${LOCAL_IP}:${PORT} (Socket.IO)`);
+  console.log(`  Documentación: http://${LOCAL_IP}:${PORT}/api-docs`);
   console.log(`========================================\n`);
 
   try {

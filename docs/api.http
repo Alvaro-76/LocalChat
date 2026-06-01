@@ -1,0 +1,99 @@
+### ==========================================
+### LocalChat API — REST Client
+### ==========================================
+### Requiere la extensión "REST Client" para VS Code
+### https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+
+### --------------------------------------------------
+### Variables globales
+### --------------------------------------------------
+@baseUrl = http://localhost:3000
+@token = <COLOCA_AQUI_TU_TOKEN_AL_REGISTRARTE>
+
+### --------------------------------------------------
+### 1. Autenticación
+### --------------------------------------------------
+
+### 1.1. Registrar un nuevo usuario
+# El primer usuario registrado obtiene rol "admin".
+# Los siguientes obtienen rol "user".
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "usuario1",
+  "password": "miPassword123"
+}
+
+### 1.2. Iniciar sesión
+# Copia el token de la respuesta y pégalo en @token arriba.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "usuario1",
+  "password": "miPassword123"
+}
+
+### --------------------------------------------------
+### 2. Avatares
+### --------------------------------------------------
+
+### 2.1. Subir avatar (requiere token)
+# Máx 5 MB. Extensiones: jpg, jpeg, png, gif, webp.
+POST {{baseUrl}}/api/avatar/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----avatar
+
+------avatar
+Content-Disposition: form-data; name="avatar"; filename="mi-avatar.jpg"
+Content-Type: image/jpeg
+
+< ./ejemplo-avatar.jpg
+------avatar--
+
+### 2.2. Obtener avatar de un usuario
+GET {{baseUrl}}/api/avatar/usuario1
+Accept: image/*
+
+### --------------------------------------------------
+### 3. Archivos
+### --------------------------------------------------
+
+### 3.1. Subir archivo (requiere token)
+# Máx 50 MB. Tipos: imágenes, documentos, audio, video.
+POST {{baseUrl}}/api/files/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----file
+
+------file
+Content-Disposition: form-data; name="file"; filename="documento.pdf"
+Content-Type: application/pdf
+
+< ./ejemplo.pdf
+------file--
+
+### 3.2. Ver archivo (inline)
+GET {{baseUrl}}/api/files/ae1955dd0539c48b/documento.pdf
+Accept: application/pdf
+
+### 3.3. Descargar archivo (attachment)
+GET {{baseUrl}}/api/files/ae1955dd0539c48b/documento.pdf/download
+Accept: application/octet-stream
+
+### --------------------------------------------------
+### 4. Otros
+### --------------------------------------------------
+
+### 4.1. Redirección a /app
+GET {{baseUrl}}/api/webdownload
+
+### --------------------------------------------------
+### 5. Documentación
+### --------------------------------------------------
+
+### 5.1. Swagger UI
+GET {{baseUrl}}/api-docs
+
+### 5.2. OpenAPI JSON
+GET {{baseUrl}}/api-docs.json

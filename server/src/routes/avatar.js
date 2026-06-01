@@ -31,6 +31,46 @@ const upload = multer({
 
 const router = express.Router();
 
+/**
+ * @openapi
+ * /api/avatar/upload:
+ *   post:
+ *     tags: [Avatares]
+ *     summary: Subir avatar
+ *     description: Sube una imagen de avatar para el usuario autenticado. Máx 5 MB.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de imagen (jpg, png, gif, webp)
+ *     responses:
+ *       200:
+ *         description: Avatar subido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AvatarUploadResponse'
+ *       400:
+ *         description: No se envió ningún archivo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Token requerido o inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/upload', authMiddleware, upload.single('avatar'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se envió ningún archivo' });
 
@@ -43,6 +83,35 @@ router.post('/upload', authMiddleware, upload.single('avatar'), (req, res) => {
   res.json({ success: true, avatar: { type: 'image', path: filename } });
 });
 
+/**
+ * @openapi
+ * /api/avatar/{username}:
+ *   get:
+ *     tags: [Avatares]
+ *     summary: Obtener avatar de un usuario
+ *     description: Devuelve la imagen del avatar de un usuario.
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Nombre de usuario
+ *     responses:
+ *       200:
+ *         description: Imagen del avatar
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No avatar
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/:username', (req, res) => {
   const { username } = req.params;
   const user = db.getUser(username);
