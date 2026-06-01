@@ -19,8 +19,9 @@ cd client && npm install && cd ../server && npm install && cd ..
 ```
 iniciar.bat
 ```
+Para que se obtenga la ip del sistema.
 
-O manualmente:
+O puedes de forma manual con la configuración anterior.
 ```bash
 cd server && npm start
 ```
