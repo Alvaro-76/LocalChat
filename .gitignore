@@ -6,3 +6,4 @@ db.json
 uploads/
 avatars/
 mocks/
+server/config.json
