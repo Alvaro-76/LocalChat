@@ -81,6 +81,25 @@ Selector de emojis integrado en el input de mensajes.
 ### Panel de Administración
 Visible solo para el admin (el primer usuario registrado obtiene el rol automáticamente). Muestra la lista de usuarios registrados con su rol (Admin/Usuario/Invitado) y permite expulsarlos.
 
+### Logging profesional 📋
+El servidor utiliza **pino** como sistema de logging con los siguientes niveles:
+
+| Nivel | Uso |
+|-------|-----|
+| `error` | Errores de base de datos, excepciones en auth, fallos de subida |
+| `warn` | JWT_SECRET no configurado, login fallido, token inválido, acceso denegado, mensajes eliminados por admin |
+| `info` | Inicio del servidor, conexión/desconexión de clientes, registro/login de usuarios, subida de archivos/avatares, creación de salas |
+| `debug` | Cada mensaje enviado/guardado/eliminado, solicitudes HTTP (vía pino-http), operaciones de sala, poda de mensajes |
+
+En **desarrollo** (`NODE_ENV` no definido): salida coloreada con `pino-pretty` y marcas de tiempo legibles.
+En **producción** (`NODE_ENV=production`): salida JSON estructurada para sistemas de agregación (ELK, Datadog, etc.).
+
+Control de verbosidad mediante variable de entorno `LOG_LEVEL` (default: `debug` en dev, `info` en prod). Ejemplo:
+```bash
+set LOG_LEVEL=warn && npm start      # Solo muestra warnings y errores
+set NODE_ENV=production && npm start # Modo producción, JSON output
+```
+
 ### Copia de seguridad de mensajes
 Los usuarios registrados tienen persistencia de mensajes globales, privados y de grupo. Los invitados pierden el historial al reconectar.
 
@@ -104,7 +123,8 @@ El servidor se anuncia automáticamente como `localchat.local` en la red.
 ## Tecnologías
 
 - **Frontend**: React 18, Vite, Socket.IO Client
-- **Backend**: Node.js, Express, Socket.IO, JWT, bcrypt, crypto
+- **Backend**: Node.js, Express, Socket.IO, JWT, bcrypt, crypto  
+- **Logging**: pino, pino-http (HTTP request logger), pino-pretty (formato desarrollo)
 - **Almacenamiento**: JSON file (db.json), subida de archivos a disco
 - **Estilos**: Inline styles, tema oscuro, animaciones CSS
 
@@ -113,7 +133,8 @@ El servidor se anuncia automáticamente como `localchat.local` en la red.
 ```
 server/
   src/
-    server.js              # Servidor Express + Socket.IO + seguridad
+    lib/logger.js          # Configuración central de pino (pretty en dev, JSON en prod)
+    server.js              # Servidor Express + Socket.IO + seguridad + pino-http
     sockets/chat.js        # Eventos de socket (chat, typing, grupos, archivos)
     sockets/rooms.js       # Salas de dados con control de acceso
     db/database.js         # Base de datos JSON
@@ -161,5 +182,7 @@ client/
 - `JWT_SECRET`: clave secreta para tokens JWT. Si no se define, se genera una automática al arrancar.
 - `PORT`: puerto del servidor (por defecto 3000).
 - `VITE_SERVER_URL`: URL del servidor para el cliente (útil si el frontend se sirve desde otro puerto).
+- `LOG_LEVEL`: nivel mínimo de log (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). Default: `debug` en desarrollo, `info` en producción.
+- `NODE_ENV`: `production` desactiva `pino-pretty` y usa salida JSON.
 
 **IP local**: edita `server/config.json` con la IP correcta de tu red local.

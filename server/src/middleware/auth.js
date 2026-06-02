@@ -1,12 +1,12 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const logger = require('../lib/logger');
 
 const AUTO_SECRET = crypto.randomBytes(32).toString('hex');
 const JWT_SECRET = process.env.JWT_SECRET || AUTO_SECRET;
 
 if (!process.env.JWT_SECRET) {
-  console.warn(`\n⚠️  JWT_SECRET no configurado. Usando secreto temporal generado.`);
-  console.warn(`   Define JWT_SECRET como variable de entorno para persistencia.\n`);
+  logger.warn('JWT_SECRET no configurado. Usando secreto temporal.');
 }
 
 function generateToken(user) {

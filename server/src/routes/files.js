@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../lib/logger');
 
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -86,6 +87,7 @@ router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
     mimeType: req.file.mimetype
   };
 
+  logger.info({ username: req.user?.username, fileName: fileData.fileName, fileSize: fileData.fileSize }, 'Archivo subido');
   res.json(fileData);
 });
 
@@ -130,7 +132,8 @@ router.get('/:id/:filename', (req, res) => {
   const filename = sanitizeParam(req.params.filename);
   if (!id || !filename) return res.status(400).json({ error: 'Parametros invalidos' });
   const filePath = path.join(UPLOAD_DIR, `${id}${path.extname(filename)}`);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Archivo no encontrado' });
+  if (!fs.existsSync(filePath)) { logger.warn({ fileId: id }, 'Archivo no encontrado'); return res.status(404).json({ error: 'Archivo no encontrado' }); }
+  logger.debug({ fileId: id, filename }, 'Archivo visualizado');
   res.sendFile(filePath);
 });
 

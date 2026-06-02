@@ -15,6 +15,8 @@ const setupSocket = require('./sockets/chat');
 const { setupRooms } = require('./sockets/rooms');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const logger = require('./lib/logger');
+const pinoHttp = require('pino-http');
 
 const os = require('os');
 const app = express();
@@ -29,7 +31,9 @@ try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     if (config.localIP) LOCAL_IP = config.localIP;
   }
-} catch {}
+} catch (err) {
+  logger.warn(err, 'Error al leer config.json');
+}
 
 const allowedOrigins = [undefined, 'http://localhost:3000', `http://localhost:${PORT}`, 'http://127.0.0.1:3000', `http://127.0.0.1:${PORT}`];
 if (LOCAL_IP !== '127.0.0.1') {
@@ -58,6 +62,7 @@ const io = new Server(server, {
 });
 
 app.use(cors(corsOptions));
+app.use(pinoHttp({ logger }));
 app.use(express.json({ limit: '1mb' }));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
@@ -107,12 +112,12 @@ setupSocket(io);
 setupRooms(io);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n========================================`);
-  console.log(`  Servidor:     http://${LOCAL_IP}:${PORT}`);
-  console.log(`  App:          http://${LOCAL_IP}:${PORT}/app`);
-  console.log(`  Chat:         ws://${LOCAL_IP}:${PORT} (Socket.IO)`);
-  console.log(`  Documentación: http://${LOCAL_IP}:${PORT}/api-docs`);
-  console.log(`========================================\n`);
+  logger.info(`========================================`);
+  logger.info(`Servidor:     http://${LOCAL_IP}:${PORT}`);
+  logger.info(`  App:          http://${LOCAL_IP}:${PORT}/app`);
+  logger.info(`  Chat:         ws://${LOCAL_IP}:${PORT} (Socket.IO)`);
+  logger.info(`  Documentación: http://${LOCAL_IP}:${PORT}/api-docs`);
+  logger.info(`========================================`);
 
   try {
     const mdns = require('multicast-dns')();
@@ -128,8 +133,8 @@ server.listen(PORT, '0.0.0.0', () => {
         });
       }
     });
-    console.log(`  📡 mDNS: localchat.local → ${LOCAL_IP}\n`);
+    logger.info(`mDNS: localchat.local → ${LOCAL_IP}`);
   } catch (e) {
-    // mDNS no disponible
+    logger.warn('mDNS no disponible en este sistema');
   }
 });

@@ -5,6 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db/database');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../lib/logger');
 
 const AVATAR_DIR = path.join(__dirname, '..', '..', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
@@ -78,6 +79,7 @@ router.post('/upload', authMiddleware, upload.single('avatar'), (req, res) => {
   const user = db.getUser(req.user.username);
   if (user) {
     db.updateUserAvatar(req.user.username, { type: 'image', path: filename });
+    logger.info({ username: req.user.username }, 'Avatar actualizado (imagen)');
   }
 
   res.json({ success: true, avatar: { type: 'image', path: filename } });

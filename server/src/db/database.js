@@ -1,12 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('../lib/logger');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'db.json');
+const MAX_MESSAGES = 1000;
 
 function readDB() {
   try {
     return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch {
+  } catch (err) {
+    logger.error({ err }, 'Error al leer db.json, usando valores por defecto');
     return { users: [], messages: [], nextUserId: 1, nextMessageId: 1 };
   }
 }
@@ -56,7 +59,7 @@ function getUser(username) {
   return db.users.find((u) => u.username === username) || null;
 }
 
-function saveMessage(from, to, content, persistent = 1) {
+function saveMessage(from, to, content, persistent = 1, ip = null, avatar = null) {
   const db = readDB();
   const msg = {
     id: db.nextMessageId++,
@@ -64,10 +67,14 @@ function saveMessage(from, to, content, persistent = 1) {
     to_user: to || null,
     content,
     persistent,
+    ip,
+    msg_avatar: avatar,
     created_at: new Date().toISOString()
   };
   db.messages.push(msg);
+  trimMessages(db);
   writeDB(db);
+  logger.debug({ id: msg.id, from, to: to || 'global' }, 'Mensaje guardado');
   return msg;
 }
 
@@ -88,6 +95,7 @@ function deleteMessage(id) {
   const db = readDB();
   db.messages = db.messages.filter((m) => m.id !== id);
   writeDB(db);
+  logger.debug({ id }, 'Mensaje eliminado de la base de datos');
 }
 
 function getAllUsers() {
@@ -95,7 +103,7 @@ function getAllUsers() {
   return db.users.map(({ id, username, role, created_at, avatar }) => ({ id, username, role, created_at, avatar: avatar || { type: 'color', color: stringToColor(username) } }));
 }
 
-function saveGroupMessage(groupId, from, content) {
+function saveGroupMessage(groupId, from, content, ip = null, avatar = null) {
   const db = readDB();
   const msg = {
     id: db.nextMessageId++,
@@ -103,11 +111,54 @@ function saveGroupMessage(groupId, from, content) {
     from_user: from,
     content,
     persistent: 1,
+    ip,
+    msg_avatar: avatar,
     created_at: new Date().toISOString()
   };
   db.messages.push(msg);
+  trimMessages(db);
   writeDB(db);
+  logger.debug({ id: msg.id, from, groupId }, 'Mensaje de grupo guardado');
   return msg;
+}
+
+function trimMessages(db) {
+  if (db.messages.length > MAX_MESSAGES) {
+    const eliminados = db.messages.length - MAX_MESSAGES;
+    db.messages.splice(0, eliminados);
+    logger.debug({ eliminados, max: MAX_MESSAGES }, 'Mensajes antiguos podados');
+  }
+}
+
+function getMessagesPaged(page = 1, limit = 50, filter = {}) {
+  const db = readDB();
+  let msgs = [...db.messages];
+
+  if (filter.type === 'global') {
+    msgs = msgs.filter(m => !m.to_user && !m.groupId);
+  } else if (filter.type === 'private') {
+    msgs = msgs.filter(m => m.to_user);
+  } else if (filter.type === 'group') {
+    msgs = msgs.filter(m => m.groupId);
+  }
+
+  if (filter.withUser) {
+    msgs = msgs.filter(m =>
+      m.from_user === filter.withUser || m.to_user === filter.withUser
+    );
+  }
+
+  if (filter.groupId) {
+    msgs = msgs.filter(m => m.groupId === filter.groupId);
+  }
+
+  msgs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const total = msgs.length;
+  const start = (page - 1) * limit;
+  const messages = msgs.slice(start, start + limit);
+
+  return { messages, total, page, hasMore: start + limit < total };
 }
 
 function getGroupMessages(groupId) {
@@ -127,5 +178,6 @@ module.exports = {
   updateUserAvatarColor,
   stringToColor,
   saveGroupMessage,
-  getGroupMessages
+  getGroupMessages,
+  getMessagesPaged
 };

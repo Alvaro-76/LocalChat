@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const db = require('../db/database');
 const { verifyToken } = require('../middleware/auth');
+const logger = require('../lib/logger');
 
 const onlineUsers = new Map();
 const SERVER_URL = process.env.SERVER_URL || '';
@@ -22,19 +23,25 @@ function setupSocket(io) {
   io.on('connection', (socket) => {
     let currentUser = null;
 
+    const clientIp = socket.handshake.address;
+    logger.debug({ ip: clientIp, sid: socket.id }, 'Nueva conexión Socket.IO');
+
     socket.on('user:join', (data) => {
       const { username, token } = data;
       const safeName = safeStr(username, 30);
       let user = { username: safeName, role: 'anonymous', id: null };
+      let tokenValid = false;
 
       if (token) {
         try {
           const decoded = verifyToken(token);
           user = decoded;
           socket.data.user = user;
+          tokenValid = true;
         } catch {
           socket.emit('error', { message: 'Token inválido, modo invitado' });
           socket.data.user = user;
+          logger.warn({ username: safeName, ip: clientIp }, 'Token inválido, modo invitado');
         }
       } else {
         socket.data.user = user;
@@ -49,13 +56,10 @@ function setupSocket(io) {
       currentUser = user;
       currentUser.avatar = avatar;
       onlineUsers.set(socket.id, currentUser);
+      logger.info({ username: currentUser.username, role: currentUser.role, ip: clientIp }, tokenValid ? 'Usuario conectado' : 'Invitado conectado');
       io.emit('users:update', Array.from(onlineUsers.values()));
       socket.emit('user:info', { ...currentUser });
-      if (user.role === 'anonymous') {
-        socket.emit('messages:global', []);
-      } else {
-        socket.emit('messages:global', db.getGlobalMessages());
-      }
+      socket.emit('messages:global', []);
       socket.emit('groups:list', getGroupsForUser(user.username));
     });
 
@@ -71,10 +75,11 @@ function setupSocket(io) {
 
       const isPersistent = currentUser.role !== 'anonymous';
       if (isPersistent) {
-        const saved = db.saveMessage(currentUser.username, null, msg.content, true);
+        const saved = db.saveMessage(currentUser.username, null, msg.content, true, clientIp, currentUser.avatar);
         msg.id = saved.id;
       }
 
+      logger.debug({ from: currentUser.username, id: msg.id }, 'Mensaje global enviado');
       io.emit('message:global', { ...msg, id: msg.id });
     });
 
@@ -88,7 +93,7 @@ function setupSocket(io) {
 
       let saved = null;
       if (isPersistent) {
-        saved = db.saveMessage(currentUser.username, to, sanitized, true);
+        saved = db.saveMessage(currentUser.username, to, sanitized, true, clientIp, currentUser.avatar);
       }
 
       const msg = {
@@ -127,7 +132,7 @@ function setupSocket(io) {
       };
       const isPersistent = currentUser.role !== 'anonymous';
       if (isPersistent) {
-        const saved = db.saveMessage(currentUser.username, null, JSON.stringify(msg), true);
+        const saved = db.saveMessage(currentUser.username, null, JSON.stringify(msg), true, clientIp, currentUser.avatar);
         msg.id = saved.id;
       }
       io.emit('file:global', msg);
@@ -148,7 +153,7 @@ function setupSocket(io) {
       };
       const isPersistent = currentUser.role !== 'anonymous';
       if (isPersistent) {
-        const saved = db.saveMessage(currentUser.username, data.to, JSON.stringify(msg), true);
+        const saved = db.saveMessage(currentUser.username, data.to, JSON.stringify(msg), true, clientIp, currentUser.avatar);
         msg.id = saved.id;
       }
       let targetSocketId = null;
@@ -171,16 +176,34 @@ function setupSocket(io) {
       socket.emit('messages:private:history', { with: otherUser, messages });
     });
 
+    socket.on('history:get', (data) => {
+      if (!currentUser || currentUser.role === 'anonymous') return;
+      const page = data?.page || 1;
+      const limit = data?.limit || 50;
+      const filter = {};
+      if (data?.type) filter.type = data.type;
+      if (data?.withUser) filter.withUser = data.withUser;
+      if (data?.groupId) filter.groupId = data.groupId;
+      const result = db.getMessagesPaged(page, limit, filter);
+      result.messages = result.messages.filter(m =>
+        !m.to_user || m.from_user === currentUser.username || m.to_user === currentUser.username
+      );
+      result.total = result.messages.length + (page - 1) * limit + (result.hasMore ? 1 : 0);
+      socket.emit('history:results', result);
+    });
+
     socket.on('admin:delete:message', (data) => {
       if (!currentUser || currentUser.role !== 'admin') return;
       const { messageId } = data;
       db.deleteMessage(messageId);
+      logger.warn({ messageId, by: currentUser.username }, 'Mensaje eliminado por administrador');
       io.emit('message:deleted', { id: messageId });
     });
 
     socket.on('admin:kick', (data) => {
       if (!currentUser || currentUser.role !== 'admin') return;
       const { username } = data;
+      logger.warn({ username, by: currentUser.username }, 'Usuario expulsado por administrador');
       for (const [sid, u] of onlineUsers) {
         if (u.username === username) {
           io.to(sid).emit('kicked', { message: 'Has sido expulsado por un administrador' });
@@ -380,7 +403,7 @@ function setupSocket(io) {
 
       const isPersistent = currentUser.role !== 'anonymous';
       if (isPersistent) {
-        const saved = db.saveGroupMessage(groupId, currentUser.username, sanitized);
+        const saved = db.saveGroupMessage(groupId, currentUser.username, msg.content, clientIp, currentUser.avatar);
         msg.id = saved.id;
       }
 
@@ -393,9 +416,12 @@ function setupSocket(io) {
     });
 
     socket.on('disconnect', () => {
-      onlineUsers.delete(socket.id);
       if (currentUser) {
+        logger.info({ username: currentUser.username }, 'Cliente desconectado');
+        onlineUsers.delete(socket.id);
         io.emit('users:update', Array.from(onlineUsers.values()));
+      } else {
+        onlineUsers.delete(socket.id);
       }
     });
   });

@@ -3,7 +3,7 @@ const spec = {
   info: {
     title: 'LocalChat API',
     version: '1.0.0',
-    description: 'API del servidor de chat local. Proporciona autenticación, subida de archivos y avatares.',
+    description: 'API del servidor de chat local. Proporciona autenticación, subida de archivos y avatares. Sistema de logging profesional con pino (JSON en prod, pino-pretty en dev). Variables de entorno: LOG_LEVEL (trace|debug|info|warn|error|fatal), NODE_ENV (production desactiva pretty-print).',
     contact: { name: 'LocalChat' }
   },
   servers: [

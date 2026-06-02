@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const logger = require('../lib/logger');
 const rooms = new Map();
 
 const MAX_DICE_COUNT = 100;
@@ -214,6 +215,7 @@ function setupRooms(io) {
           }
           if (room.players.length === 0) {
             rooms.delete(roomId);
+            logger.debug({ roomId, username: user.username }, 'Sala eliminada (sin jugadores)');
           } else if (room.admin === user.username) {
             room.admin = room.players[0];
             room.currentTurn = 0;
@@ -251,6 +253,7 @@ function setupRooms(io) {
       };
       rooms.set(id, room);
       socket.join(id);
+      logger.info({ roomId: id, name: room.name, by: user.username }, 'Sala creada');
       socket.emit('room:created', getRoomData(room));
       io.emit('rooms:list', Array.from(rooms.values()).map(getRoomData));
     });
@@ -268,6 +271,7 @@ function setupRooms(io) {
       }
       room.players.push(user.username);
       socket.join(data.roomId);
+      logger.info({ roomId: data.roomId, username: user.username }, 'Jugador unido a sala');
       socket.emit('room:joined', getRoomData(room));
       io.to(data.roomId).emit('room:updated', getRoomData(room));
       io.emit('rooms:list', Array.from(rooms.values()).map(getRoomData));
@@ -286,6 +290,7 @@ function setupRooms(io) {
       socket.leave(data.roomId);
       if (room.players.length === 0) {
         rooms.delete(data.roomId);
+        logger.debug({ roomId: data.roomId }, 'Sala eliminada (último jugador se fue)');
       } else if (room.admin === user.username) {
         room.admin = room.players[0];
         room.currentTurn = 0;

@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const db = require('../db/database');
 const { generateToken } = require('../middleware/auth');
+const logger = require('../lib/logger');
 
 const router = express.Router();
 
@@ -73,8 +74,10 @@ router.post('/register', async (req, res) => {
     const user = db.getUser(username);
     const token = generateToken(user);
     const avatar = user.avatar || { type: 'color', color: db.stringToColor(user.username) };
+    logger.info({ username, role }, 'Usuario registrado');
     res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, avatar } });
   } catch (err) {
+    logger.error({ err }, 'Error al registrar usuario');
     res.status(500).json({ error: 'Error al registrar' });
   }
 });
@@ -129,16 +132,20 @@ router.post('/login', async (req, res) => {
   try {
     const user = db.getUser(username);
     if (!user) {
+      logger.warn({ username }, 'Intento de login: usuario no encontrado');
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
+      logger.warn({ username }, 'Intento de login: contraseña incorrecta');
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
     const token = generateToken(user);
     const avatar = user.avatar || { type: 'color', color: db.stringToColor(user.username) };
+    logger.info({ username }, 'Inicio de sesión exitoso');
     res.json({ token, user: { id: user.id, username: user.username, role: user.role, avatar } });
   } catch (err) {
+    logger.error({ err }, 'Error al iniciar sesión');
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 });

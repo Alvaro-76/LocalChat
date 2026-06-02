@@ -8,6 +8,8 @@ import RoomView from '../components/RoomView';
 import ChannelsPanel from '../components/ChannelsPanel';
 import SettingsPanel from '../components/SettingsPanel';
 import Avatar from '../components/Avatar';
+import HistoryView from '../components/HistoryView';
+import { panelItemStyle } from '../components/panelStyles';
 
 import { SERVER_URL } from '../services/config';
 import { InviteModal, ConfirmModal } from '../components/Modal';
@@ -518,13 +520,24 @@ export default function Chat({ user: initialUser, onLogout }) {
     }
   };
 
+  const handleHistoryClick = useCallback(() => {
+    setActiveTab('history');
+    setSelectedUser(null);
+    setActiveGroup(null);
+    setActiveRoom(null);
+  }, []);
+
+  const handleHistoryBack = useCallback(() => {
+    setActiveTab('global');
+  }, []);
+
   const otherUser = selectedUser?.username || 'Desconocido';
   const headerTitle = activeGroup ? `# ${activeGroup.name}` :
     activeRoom ? `🎲 ${activeRoom.name}` :
-    activeTab === 'global' ? 'General' : otherUser;
+    activeTab === 'global' ? 'General' : activeTab === 'history' ? '📋 Historial' : otherUser;
   const headerSub = activeGroup ? `${activeGroup.members?.length || 0} miembros` :
     activeRoom ? `${activeRoom.players.length} jugadores` :
-    activeTab === 'global' ? 'Chat global en la red local' : `Mensaje privado`;
+    activeTab === 'global' ? 'Chat global en la red local' : activeTab === 'history' ? '' : `Mensaje privado`;
 
   return (
     <div style={styles.container}>
@@ -563,6 +576,27 @@ export default function Chat({ user: initialUser, onLogout }) {
               unreadGlobal={unreadGlobal}
               onlineUsersCount={onlineUsers.length}
             />
+            {user.role !== 'anonymous' && (
+              <div style={{
+                ...panelItemStyle,
+                ...(activeTab === 'history' ? {background: 'var(--surface-active)', color: 'var(--primary)'} : {}),
+                borderLeft: activeTab === 'history' ? '3px solid var(--accent)' : '3px solid transparent',
+                cursor: 'pointer'
+              }} onClick={handleHistoryClick}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: 'var(--primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '16px', flexShrink: 0, color: '#fff'
+                }}>📋</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Historial</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '1px' }}>
+                    Mensajes antiguos
+                  </div>
+                </div>
+              </div>
+            )}
             <UserList
               users={onlineUsers}
               currentUser={user.username}
@@ -639,6 +673,8 @@ export default function Chat({ user: initialUser, onLogout }) {
             onConfigChange={updateDiceConfig}
             messages={roomMessages[activeRoom.id] || []}
           />
+        ) : activeTab === 'history' ? (
+          <HistoryView groups={groups} currentUser={user.username} isAdmin={user.role === 'admin'} onBack={handleHistoryBack} onDelete={deleteMessage} />
         ) : (
           <>
             <div style={styles.header}>
