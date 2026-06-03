@@ -73,7 +73,7 @@ Accesible desde el botón ⚙️ en la sidebar:
 - **Avatar**: cambiar imagen o color (solo usuarios registrados).
 
 ### Archivos 📎
-Arrastra, peza o sube archivos. Límite: 50MB. Tipos permitidos: imágenes, PDF, documentos, audio, video, comprimidos, texto y más. Solo usuarios registrados pueden subir archivos.
+Arrastra, peza o sube archivos. Límite: 120MB. Tipos permitidos: imágenes, PDF, documentos, audio, video, comprimidos, texto y más. Solo usuarios registrados pueden subir archivos.
 
 ### Emojis
 Selector de emojis integrado en el input de mensajes.
@@ -174,7 +174,7 @@ client/
 
 **Error de conexión**: verifica que el servidor esté corriendo y que el puerto 3000 esté accesible.
 
-**Archivos grandes**: el límite es 50MB. Si necesitas más, cambia `limits.fileSize` y `ALLOWED_MIMES` en `server/src/routes/files.js`.
+**Archivos grandes**: el límite es 120MB. Si necesitas más, cambia `limits.fileSize` y `ALLOWED_MIMES` en `server/src/routes/files.js`.
 
 **Subida de archivos**: solo usuarios registrados pueden subir archivos. Los invitados verán un mensaje pidiendo que se registren.
 
